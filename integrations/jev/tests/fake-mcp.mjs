@@ -34,20 +34,38 @@ const tools = {
     taskId: "task-" + n,
     childThreadId: "child-" + n,
     childRunId: "run-" + n,
-    status: cancelled ? "cancelled" : n === 1 ? "failed" : "completed",
+    status: cancelled
+      ? "cancelled"
+      : n === 1 && process.env.FIXTURE_COMPLETED_QUOTA !== "1"
+        ? "failed"
+        : "completed",
     summary: n === 1 ? "usage limit reached" : "FALLBACK_OK",
     hasPendingChildRuns: false,
   }),
   t3_thread_read: () => ({
-    items: [
-      {
-        runId: "run-" + n,
-        type: "system_notice",
-        creationSource: "provider",
-        createdBy: "system",
-        text: "Claude usage limit reached",
-      },
-    ],
+    items:
+      n > 1 || (process.env.FIXTURE_PENDING === "1" && statusCalls > 1)
+        ? []
+        : [
+            {
+              runId: "run-" + n,
+              type: process.env.FIXTURE_TYPED_QUOTA === "1" ? "error" : "system_notice",
+              ...(process.env.FIXTURE_TYPED_QUOTA === "1"
+                ? {
+                    failure: {
+                      class: "usage_limit",
+                      code: "api_error_429",
+                      message: "Allowance unavailable",
+                    },
+                    text: undefined,
+                  }
+                : {}),
+              creationSource: "provider",
+              createdBy: "system",
+              text:
+                process.env.FIXTURE_TYPED_QUOTA === "1" ? undefined : "Claude usage limit reached",
+            },
+          ],
   }),
   task_cancel: () => {
     cancelled = true;

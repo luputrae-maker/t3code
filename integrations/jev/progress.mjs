@@ -1,4 +1,5 @@
 import * as NodeCrypto from "node:crypto";
+import { quotaEvidence } from "./policy.mjs";
 import { providerName } from "./presentation.mjs";
 
 const terminal = new Set(["completed", "failed", "cancelled", "interrupted"]);
@@ -93,12 +94,7 @@ export function workSnapshot({ parentThreadId, rootThreadId, projections, incomp
       pending = (p.runtimeRequests ?? []).filter((r) => r.status === "pending");
     const failures = (p.turnItems ?? []).filter(
       (i) =>
-        i.type === "error" &&
-        i.runId === run?.id &&
-        i.failure?.class === "provider_error" &&
-        i.failure?.code === "provider.rate-limit" &&
-        (/\bTPD\b|daily|tokens? per day/i.test(i.failure.message ?? "") ||
-          (i.retry?.attempt ?? 0) >= 2) &&
+        quotaEvidence({ items: [i] }, run?.id) &&
         !(p.turnItems ?? []).some(
           (later) =>
             later.runId === run?.id &&
@@ -111,8 +107,14 @@ export function workSnapshot({ parentThreadId, rootThreadId, projections, incomp
       if (record) (record.questions ? questions : approvals).push(record);
     }
     for (const f of failures)
-      if (!terminal.has(run?.status))
-        quota.push({ threadId: p.thread.id, runId: run?.id, message: f.failure.message });
+      if (!["cancelled", "interrupted"].includes(run?.status))
+        quota.push({
+          threadId: p.thread.id,
+          runId: run?.id,
+          message: f.failure?.message ?? f.text ?? f.title,
+          failure: f.failure,
+          retry: f.retry,
+        });
     const provider = run?.providerInstanceId ?? p.thread.modelSelection?.instanceId;
     if (provider === "jev-auto") continue; // Routers are not additional working models.
     const childWork = (p.subagents ?? []).filter((t) =>
@@ -120,7 +122,7 @@ export function workSnapshot({ parentThreadId, rootThreadId, projections, incomp
     );
     const state = pending.length
       ? "waiting"
-      : failures.length && !terminal.has(run?.status)
+      : failures.length && !["cancelled", "interrupted"].includes(run?.status)
         ? "blocked"
         : run?.status === "completed" && childWork.length
           ? "waiting"

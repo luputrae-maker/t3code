@@ -22,7 +22,10 @@ async function protocolClient() {
     directory,
     call: async (method, params) => {
       child.stdin.write(JSON.stringify({ jsonrpc: "2.0", id: ++id, method, params }) + "\n");
-      return JSON.parse((await iter.next()).value);
+      while (true) {
+        const message = JSON.parse((await iter.next()).value);
+        if (message.id === id) return message;
+      }
     },
     close: async () => {
       const exited = NodeEvents.once(child, "exit");

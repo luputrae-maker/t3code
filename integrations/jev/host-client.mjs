@@ -4,6 +4,7 @@ import * as NodePath from "node:path";
 import * as NodeCrypto from "node:crypto";
 import * as NodeChildProcess from "node:child_process";
 import WebSocket from "ws";
+import { antigravityQuotaEvidence } from "./native-quota.mjs";
 import { workSnapshot } from "./progress.mjs";
 
 export function localHostOptions(config = {}) {
@@ -193,7 +194,15 @@ export class HostClient {
       const p = await this.rpc("orchestration.getThreadProjection", { threadId: id });
       if (p.thread?.lineage?.parentThreadId !== parent)
         throw Error("Task family changed; UI relay refused");
-      projections.push(p);
+      const evidence = await antigravityQuotaEvidence(
+        p,
+        this.options.antigravityProvidersDirectory ??
+          NodePath.join(
+            this.options.baseDir ?? NodePath.join(NodeOS.homedir(), ".t3"),
+            "userdata/providers/antigravity",
+          ),
+      );
+      projections.push(evidence ? { ...p, turnItems: [...(p.turnItems ?? []), evidence] } : p);
       if (onChange) this.watch(id, onChange);
       for (const task of p.subagents ?? [])
         if (task.childThreadId) await visit(task.childThreadId, id, depth + 1);

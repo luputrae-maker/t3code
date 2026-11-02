@@ -488,3 +488,109 @@ NodeTest.test(
     }
   },
 );
+
+NodeTest.test(
+  "completed typed quota failures switch instead of becoming successful answers",
+  async () => {
+    const c = await client(false, {
+      FIXTURE_COMPLETED_QUOTA: "1",
+      FIXTURE_TYPED_QUOTA: "1",
+      FIXTURE_CAPTURE_TASKS: "1",
+    });
+    try {
+      const result = await c.call("session/prompt", {
+        sessionId: c.sessionId,
+        prompt: [{ type: "text", text: "Continue my original work" }],
+      });
+      NodeAssert.equal(result.error, undefined);
+      const tasks = NodeFS.readFileSync(NodePath.join(c.state, "delegated-tasks.ndjson"), "utf8")
+        .trim()
+        .split("\n")
+        .map(JSON.parse);
+      NodeAssert.equal(tasks.length, 2);
+      NodeAssert.match(tasks[1].task, /Continue my original work/);
+      NodeAssert.match(tasks[1].task, /Codex.*connection/);
+      const state = JSON.parse(NodeFS.readFileSync(NodePath.join(c.state, c.sessionId + ".json")));
+      NodeAssert.equal(state.history.at(-1).answer, "FALLBACK_OK");
+    } finally {
+      c.close();
+    }
+  },
+);
+NodeTest.test(
+  "explicit plan mode survives a quota handoff, reload, and changes only on build",
+  async () => {
+    const c = await client(false, {
+      FIXTURE_CAPTURE_TASKS: "1",
+      FIXTURE_JEV_SCOPE: "execute",
+      FIXTURE_JEV_TEAM: "parallel_build",
+    });
+    let replacement;
+    try {
+      const invoke = (text) =>
+        c.call("session/prompt", { sessionId: c.sessionId, prompt: [{ type: "text", text }] });
+      await invoke("/plan Design checkout");
+      const tasks = NodeFS.readFileSync(NodePath.join(c.state, "delegated-tasks.ndjson"), "utf8")
+        .trim()
+        .split("\n")
+        .map(JSON.parse);
+      NodeAssert.equal(tasks.length, 2);
+      for (const task of tasks) {
+        NodeAssert.equal(task.interactionMode, "plan");
+        NodeAssert.match(task.task, /Do not edit project files/);
+        NodeAssert.ok(task.task.endsWith("Design checkout"));
+      }
+      let state = JSON.parse(NodeFS.readFileSync(NodePath.join(c.state, c.sessionId + ".json")));
+      NodeAssert.equal(state.lastRoute.scope, "plan_only");
+      NodeAssert.notEqual(state.lastRoute.collaboration, "parallel_build");
+      await c.stopPreservingState();
+      replacement = await client(
+        false,
+        { FIXTURE_CAPTURE_TASKS: "1", FIXTURE_EXISTING_TASK: "2", FIXTURE_JEV_SCOPE: "execute" },
+        { state: c.state, sessionId: c.sessionId },
+      );
+      const send = (text) =>
+        replacement.call("session/prompt", {
+          sessionId: c.sessionId,
+          prompt: [{ type: "text", text }],
+        });
+      await send("/plan");
+      await send("Check the payment edge cases");
+      await send("/build");
+      await send("Implement the approved checkout");
+      const all = NodeFS.readFileSync(NodePath.join(c.state, "delegated-tasks.ndjson"), "utf8")
+        .trim()
+        .split("\n")
+        .map(JSON.parse);
+      NodeAssert.equal(all.length, 4);
+      NodeAssert.equal(all[2].interactionMode, "plan");
+      NodeAssert.equal(all[3].interactionMode, undefined);
+      NodeAssert.ok(
+        replacement.messages.some(
+          (m) =>
+            m.params?.update?.sessionUpdate === "available_commands_update" &&
+            m.params.update.availableCommands.some((c) => c.name === "plan"),
+        ),
+      );
+    } finally {
+      replacement?.close();
+      c.close();
+    }
+  },
+);
+NodeTest.test("mode commands leave attached work and permissions untouched", async () => {
+  const c = await client(false, { FIXTURE_CAPTURE_TASKS: "1", FIXTURE_LONG_RUNNING: "1" });
+  try {
+    const invoke = (text) =>
+      c.call("session/prompt", { sessionId: c.sessionId, prompt: [{ type: "text", text }] });
+    await invoke("Keep working");
+    const before = JSON.parse(NodeFS.readFileSync(NodePath.join(c.state, c.sessionId + ".json")));
+    await invoke("/plan");
+    const after = JSON.parse(NodeFS.readFileSync(NodePath.join(c.state, c.sessionId + ".json")));
+    NodeAssert.equal(after.pending.taskId, before.pending.taskId);
+    NodeAssert.deepEqual(after.queue, []);
+    NodeAssert.equal(after.interactionMode, before.interactionMode);
+  } finally {
+    c.close();
+  }
+});

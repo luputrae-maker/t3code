@@ -87,7 +87,7 @@ NodeTest.test(
   },
 );
 NodeTest.test(
-  "a running provider retry with an explicit quota error is surfaced promptly",
+  "quota evidence is surfaced before terminal completion or a long provider retry",
   async () => {
     let waits = 0;
     const host = {
@@ -104,17 +104,19 @@ NodeTest.test(
       },
       changed() {},
     };
-    const result = await monitorTask({
-      host,
-      parentThreadId: "parent",
-      rootThreadId: "child",
-      readStatus: async () => ({ status: "running" }),
-      update: () => {},
-      askPermission: async () => {},
-      cancelled: () => false,
-    });
-    NodeAssert.equal(result.uiQuota, true);
-    NodeAssert.equal(waits, 0);
+    for (const status of ["running", "completed", "failed"]) {
+      const result = await monitorTask({
+        host,
+        parentThreadId: "parent",
+        rootThreadId: "child",
+        readStatus: async () => ({ status }),
+        update: () => {},
+        askPermission: async () => {},
+        cancelled: () => false,
+      });
+      NodeAssert.equal(result.uiQuota, true);
+      NodeAssert.equal(waits, 0);
+    }
   },
 );
 NodeTest.test("a nested router leaves approval forwarding to the main coordinator", async () => {
@@ -184,3 +186,47 @@ NodeTest.test("other agents keep updating while the main chat waits for an appro
   NodeAssert.ok(updates >= 2);
   NodeAssert.equal(r.uiDeferred, true);
 });
+
+NodeTest.test(
+  "repeated structured rate-limit evidence survives the snapshot and monitor boundary",
+  async () => {
+    const { workSnapshot } = await import("../progress.mjs"),
+      { quotaEvidence } = await import("../policy.mjs");
+    const p = {
+      thread: {
+        id: "child",
+        lineage: { parentThreadId: "parent" },
+        modelSelection: { instanceId: "kimi-api" },
+      },
+      runs: [{ id: "run", ordinal: 1, status: "running", providerInstanceId: "kimi-api" }],
+      turnItems: [
+        {
+          runId: "run",
+          type: "error",
+          ordinal: 1,
+          failure: {
+            class: "provider_error",
+            code: "provider.rate-limit",
+            message: "Provider temporarily unavailable",
+          },
+          retry: { attempt: 2 },
+        },
+      ],
+    };
+    const snapshot = workSnapshot({
+      parentThreadId: "parent",
+      rootThreadId: "child",
+      projections: [p],
+    });
+    const result = await monitorTask({
+      host: { snapshot: async () => snapshot, changed() {} },
+      parentThreadId: "parent",
+      rootThreadId: "child",
+      readStatus: async () => ({ status: "running" }),
+      update: () => {},
+      cancelled: () => false,
+    });
+    NodeAssert.equal(result.uiQuota, true);
+    NodeAssert.equal(quotaEvidence({ items: result.uiQuotaEvidence }, "run"), true);
+  },
+);

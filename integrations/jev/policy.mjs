@@ -29,7 +29,7 @@ export function selectChoice(pool, id) {
   return c;
 }
 export function isQuota(text) {
-  return /usage[ _-]*limit.{0,40}(reached|exceeded|hit)|(?:rate|usage)[ _-]*limit[ _-]*exceeded|insufficient_quota|quota.{0,35}(exhausted|exceeded)|exhausted.{0,25}quota|too many requests|hit your.{0,20}limit|reached your.{0,20}limit|request reached (?:organization |account )?(?:TPD|daily token)[ _-]*(?:rate )?limit/i.test(
+  return /usage[ _-]*limit.{0,40}(reached|exceeded|hit)|(?:rate|usage)[ _-]*limit[ _-]*(?:exceeded|reached)|insufficient_quota|quota.{0,35}(exhausted|exceeded)|exhausted.{0,25}quota|too many requests|hit your.{0,20}limit|reached your.{0,20}limit|request reached (?:organization |account )?(?:TPD|daily token)[ _-]*(?:rate )?limit/i.test(
     text ?? "",
   );
 }
@@ -42,13 +42,44 @@ export function quiescent(result) {
   );
 }
 export function quotaEvidence(activity, runId) {
-  return (activity?.items ?? []).some(
-    (item) =>
-      item.runId === runId &&
-      ["system_notice", "error", "provider_error"].includes(item.type) &&
-      (!item.creationSource || ["provider", "server"].includes(item.creationSource)) &&
-      (!item.createdBy || item.createdBy === "system") &&
-      !/permission denied|approval|test failed/i.test(item.text ?? "") &&
-      isQuota(item.text ?? item.title),
-  );
+  return (activity?.items ?? []).some((item) => {
+    if (
+      !runId ||
+      item.runId !== runId ||
+      !["system_notice", "error", "provider_error"].includes(item.type) ||
+      (item.creationSource && !["provider", "server"].includes(item.creationSource)) ||
+      (item.createdBy && item.createdBy !== "system")
+    )
+      return false;
+    if (
+      (activity?.items ?? []).some(
+        (later) =>
+          later.runId === runId &&
+          ["assistant_message", "reasoning"].includes(later.type) &&
+          (later.ordinal ?? later.position) > (item.ordinal ?? item.position),
+      )
+    )
+      return false;
+    const failure = item.failure;
+    if (failure?.class && !["usage_limit", "provider_error"].includes(failure.class)) return false;
+    const text = failure?.message ?? item.text ?? item.title ?? "";
+    if (/permission denied|approval|test failed/i.test(text)) return false;
+    if (
+      failure?.class === "provider_error" &&
+      ["api_error_429", "provider.rate-limit"].includes(failure.code)
+    ) {
+      return (
+        /\bTPD\b|daily|tokens? per day|quota.*(?:exhausted|exceeded)|insufficient_quota/i.test(
+          text,
+        ) || (item.retry?.attempt ?? 0) >= 2
+      );
+    }
+    return (
+      failure?.class === "usage_limit" ||
+      isQuota(text) ||
+      (failure?.class === "provider_error" &&
+        ["api_error_429", "provider.rate-limit"].includes(failure.code) &&
+        (item.retry?.attempt ?? 0) >= 2)
+    );
+  });
 }

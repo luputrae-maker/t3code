@@ -128,3 +128,107 @@ NodeTest.test("an exact fresh UI approval gets only a short-lived one-time respo
     await f.close();
   }
 });
+
+NodeTest.test(
+  "old Antigravity quota banners require a matching native error within the current run",
+  async () => {
+    const NodeFS = await import("node:fs"),
+      NodeOS = await import("node:os"),
+      NodePath = await import("node:path"),
+      NodeSqlite = await import("node:sqlite");
+    const directory = NodeFS.realpathSync(
+      NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "jev-native-quota-")),
+    );
+    const f = await fixture();
+    const session = "11111111-1111-1111-1111-111111111111";
+    const profile = NodePath.join(directory, "a".repeat(64)),
+      conversations = NodePath.join(profile, "antigravity-acp", "conversations"),
+      file = NodePath.join(conversations, session + ".db");
+    const banner =
+      "Usage Limit Reached\n\nYou have reached your current quota for this period. Your limit will reset in 6 days, 15 hours.";
+    try {
+      NodeFS.mkdirSync(conversations, { recursive: true });
+      const db = new NodeSqlite.DatabaseSync(file);
+      db.exec(
+        "CREATE TABLE steps(idx INTEGER PRIMARY KEY, step_type INTEGER, metadata BLOB, step_payload BLOB)",
+      );
+      const varint = (n) => {
+        const bytes = [];
+        do {
+          bytes.push((n % 128) | (n >= 128 ? 128 : 0));
+          n = Math.floor(n / 128);
+        } while (n);
+        return Buffer.from(bytes);
+      };
+      const seconds = 1700000000,
+        stamp = Buffer.concat([
+          Buffer.from([8]),
+          varint(seconds),
+          Buffer.from([16]),
+          varint(500000000),
+        ]);
+      const metadata = Buffer.concat([Buffer.from([10, stamp.length]), stamp]);
+      const error = Buffer.from(
+        "Error 429, Message: Individual quota reached., Status: RESOURCE_EXHAUSTED, Details: [reason:QUOTA_EXHAUSTED]",
+      );
+      db.prepare("INSERT INTO steps VALUES (1,17,?,?)").run(metadata, error);
+      db.close();
+      f.host.options.antigravityProvidersDirectory = directory;
+      const make = () => projection("child", "parent", "antigravity");
+      const p = make();
+      p.runs[0] = {
+        ...p.runs[0],
+        status: "completed",
+        providerThreadId: "native",
+        requestedAt: "2023-11-14T22:13:20.000Z",
+        completedAt: "2023-11-14T22:13:21.000Z",
+      };
+      p.providerThreads = [
+        {
+          id: "native",
+          driver: "antigravity",
+          nativeThreadRef: { driver: "antigravity", strength: "strong", nativeId: session },
+        },
+      ];
+      p.turnItems = [
+        { type: "assistant_message", runId: "run", ordinal: 2, text: banner, streaming: false },
+      ];
+      f.setChild(p);
+      const verified = await f.host.snapshot("parent", "child");
+      NodeAssert.equal(verified.quota.length, 1);
+      NodeAssert.match(verified.quota[0].message, /Antigravity/);
+      NodeAssert.doesNotMatch(verified.quota[0].message, /weekly Anthropic|Claude subscription/);
+      NodeAssert.equal(verified.plan[0].status, "pending");
+      for (const alter of [
+        (q) => (q.runs[0].requestedAt = "2023-11-14T22:13:20.700Z"),
+        (q) => (q.turnItems[0].text = "The previous agent said: " + banner),
+        (q) => (q.turnItems[0].runId = "old-run"),
+        (q) => (q.providerThreads[0].nativeThreadRef.strength = "weak"),
+        (q) => (q.runs[0].status = "cancelled"),
+        (q) => q.runs.push({ ...q.runs[0], id: "overlap", ordinal: 0 }),
+        (q) =>
+          q.turnItems.push({
+            type: "assistant_message",
+            runId: "run",
+            ordinal: 3,
+            text: "Recovered and completed the task",
+          }),
+      ]) {
+        const changed = structuredClone(p);
+        alter(changed);
+        f.setChild(changed);
+        NodeAssert.equal((await f.host.snapshot("parent", "child")).quota.length, 0);
+      }
+      f.setChild(p);
+      NodeFS.writeFileSync(file + "-wal", "");
+      NodeAssert.equal((await f.host.snapshot("parent", "child")).quota.length, 0);
+      NodeFS.unlinkSync(file + "-wal");
+      NodeFS.renameSync(file, file + ".original");
+      NodeFS.symlinkSync(file + ".original", file);
+      NodeAssert.equal((await f.host.snapshot("parent", "child")).quota.length, 0);
+    } finally {
+      await f.close();
+      NodeFS.rmSync(directory, { recursive: true, force: true });
+    }
+  },
+);

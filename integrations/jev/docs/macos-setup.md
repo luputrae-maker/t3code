@@ -19,6 +19,12 @@ This is an addon for the official T3 Code app. It uses T3's native agents, permi
 4. In T3 Settings → Providers → Jev Auto, add your own `TYPESAFE_API_KEY` as a **sensitive environment variable**. This is Jev's routing API key, separate from model subscriptions. Use your own existing account/budget. Do not put it into the kit or send it to someone else. Existing Macs can continue using their own pre-existing Jev credential store.
 5. Refresh provider discovery, then select **Jev Auto / auto**. Start a small test request. Jev picks a configured native provider, its supported model and effort, and relevant installed skills. Agents use the tools actually authorized in that runner.
 
+## Planning and provider limits
+
+Send `/plan` to keep the chat in planning mode, or `/plan your task` to start planning immediately. Subsequent tasks and automatic provider handoffs keep native plan mode. Send `/build` to return to implementation. These commands preserve T3 permissions and will ask you to finish or cancel attached work before changing modes.
+
+Recognized provider quota failures cause a handoff to another eligible connected provider after the affected task and descendants stop. The request and prior activity are carried forward; the limited connection is excluded for 30 minutes, with at most six attempts per chain. Jev does not know balances in advance. Direct Claude and Antigravity are separate connections. Ordinary failures, account sign-ins and permission requests are not automatically retried.
+
 ## Permissions
 
 Open **Jev Auto → Permissions** in the composer:

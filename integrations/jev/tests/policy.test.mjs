@@ -44,6 +44,7 @@ NodeTest.test("only explicit quota signals trigger fallback", () => {
   for (const s of [
     "usage limit reached",
     "rate_limit_exceeded",
+    "Claude API rate limit reached. Try again later.",
     "insufficient_quota",
     "exhausted your quota",
     "Your request reached organization TPD rate limit, current: 1520000, limit: 1500000",
@@ -87,5 +88,69 @@ NodeTest.test(
     NodeAssert.equal(quiescent({ status: "failed", hasPendingChildRuns: true }), false);
     NodeAssert.equal(quiescent({ status: "failed", pendingApproval: {} }), false);
     NodeAssert.equal(quiescent({ status: "failed", hasPendingChildRuns: false }), true);
+  },
+);
+
+NodeTest.test("typed current-run usage failures do not require a text regex", () => {
+  const item = {
+    runId: "current",
+    type: "error",
+    failure: {
+      class: "usage_limit",
+      code: "api_error_429",
+      message: "Provider unavailable for this period",
+    },
+  };
+  NodeAssert.equal(quotaEvidence({ items: [item] }, "current"), true);
+  for (const change of [
+    { runId: "old" },
+    { createdBy: "agent" },
+    { type: "assistant_message" },
+    { failure: { class: "authentication", message: "quota exceeded" } },
+  ])
+    NodeAssert.equal(quotaEvidence({ items: [{ ...item, ...change }] }, "current"), false);
+});
+
+NodeTest.test(
+  "recovered MCP timeline errors and a single temporary throttle never switch providers",
+  () => {
+    const error = {
+      runId: "current",
+      type: "error",
+      position: 1,
+      text: "Claude API rate limit reached",
+    };
+    NodeAssert.equal(
+      quotaEvidence(
+        {
+          items: [
+            error,
+            {
+              runId: "current",
+              type: "assistant_message",
+              position: 2,
+              text: "Recovered and finished",
+            },
+          ],
+        },
+        "current",
+      ),
+      false,
+    );
+    const typed = {
+      runId: "current",
+      type: "error",
+      failure: {
+        class: "provider_error",
+        code: "provider.rate-limit",
+        message: "Rate limit reached",
+      },
+      retry: { attempt: 1 },
+    };
+    NodeAssert.equal(quotaEvidence({ items: [typed] }, "current"), false);
+    NodeAssert.equal(
+      quotaEvidence({ items: [{ ...typed, retry: { attempt: 2 } }] }, "current"),
+      true,
+    );
   },
 );

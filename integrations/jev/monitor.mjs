@@ -19,9 +19,8 @@ export async function monitorTask({
     await update(snapshot);
     if (deferred) return { ...result, uiDeferred: true };
     if (relayError) throw relayError;
-    if (quiescent(result)) return result;
     const quota = snapshot.quota.filter((q) => q.threadId === rootThreadId);
-    if (quota.length)
+    if (quota.length && !["cancelled", "interrupted"].includes(result.status))
       return {
         ...result,
         uiQuota: true,
@@ -31,8 +30,11 @@ export async function monitorTask({
           creationSource: "provider",
           createdBy: "system",
           text: q.message,
+          failure: q.failure,
+          retry: q.retry,
         })),
       };
+    if (quiescent(result)) return result;
     if (relay && snapshot.questions.length) return { ...result, uiQuestions: snapshot.questions };
     for (const request of relay ? snapshot.approvals : []) {
       if (handled.has(request.fingerprint)) continue;

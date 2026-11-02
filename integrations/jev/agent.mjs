@@ -322,6 +322,7 @@ async function choose(s, pool, prompt) {
     {
       request: userRequest(prompt).slice(0, 18000),
       leaf: !!s.leaf || isLeafRequest(userRequest(prompt)),
+      interactionMode: s.interactionMode ?? "default",
       history: s.history.slice(-4).map((h) => ({
         request: userRequest(h.request).slice(0, 4000),
         answer: h.answer.slice(-4000),
@@ -341,6 +342,10 @@ async function choose(s, pool, prompt) {
       return await r.json();
     },
   );
+  if (s.interactionMode === "plan" || s.handoff?.scope === "plan_only") {
+    selected.scope = "plan_only";
+    if (selected.collaboration === "parallel_build") selected.collaboration = "parallel_read";
+  }
   s.lastRoute = {
     ...selected,
     plannedSkills: selectedSkills(selected).map((s) => s.name),
@@ -359,6 +364,24 @@ async function choose(s, pool, prompt) {
     { mode: 0o600 },
   );
   return selected;
+}
+function advertiseCommands(s) {
+  sessionUpdate(s, {
+    sessionUpdate: "available_commands_update",
+    availableCommands: [
+      {
+        name: "plan",
+        description: "Plan without implementation until /build",
+        input: { hint: "Optional task to plan" },
+      },
+      {
+        name: "build",
+        description: "Return to implementation using T3 permissions",
+        input: { hint: "Optional task to implement" },
+      },
+      { name: "jev-status", description: "Show the attached task without launching work" },
+    ],
+  });
 }
 function setupResult(s) {
   return {
@@ -411,7 +434,7 @@ async function confirmStop(s, b) {
   save(s);
   return true;
 }
-async function finish(s, b, result) {
+async function finish(s, b, result, { allowFallback = true } = {}) {
   if (result.uiQuestions?.length) {
     const question = result.uiQuestions[0];
     if (s.awaitingQuestion?.request.fingerprint !== question.fingerprint)
@@ -426,6 +449,51 @@ async function finish(s, b, result) {
       "The approval is still pending. Your work is preserved; send another message here to show it again.\n\n",
     );
     return true;
+  }
+  if (
+    !result.pendingApproval &&
+    !result.hasPendingQuestion &&
+    result.childThreadId &&
+    (["completed", "failed", "waiting"].includes(result.status) || result.uiQuota)
+  ) {
+    const read = await b.call("t3_thread_read", {
+      threadId: result.childThreadId,
+      view: "activity",
+      limit: 100,
+      runLimit: 1,
+    });
+    if (
+      quotaEvidence(read, s.pending.runId) ||
+      quotaEvidence({ items: result.uiQuotaEvidence }, s.pending.runId)
+    ) {
+      if (!allowFallback) {
+        emit(
+          s.id,
+          "The current provider reported a usage limit. Send ‘continue’ to let Jev resume with another available connection.\n\n",
+        );
+        return true;
+      }
+      const previous = { ...s.pending };
+      if (!quiescent(result) && !(await confirmStop(s, b))) {
+        emit(s.id, "Provider limited; waiting for its child work to stop before handoff.");
+        return true;
+      }
+      s.cooldowns[previous.providerInstanceId] = Date.now() + 30 * 60000;
+      s.handoff = {
+        threadId: result.childThreadId,
+        scope: previous.scope,
+        text:
+          `The ${providerName(previous.providerInstanceId)} provider connection running ${previous.model} reported a usage limit. This evidence applies only to that connection; do not infer another subscription or a weekly/global limit.\n` +
+          JSON.stringify(read).slice(-12000),
+      };
+      s.pending = null;
+      save(s);
+      emit(
+        s.id,
+        `\n${providerName(previous.providerInstanceId)} reached a usage limit. Jev is choosing another available provider to continue.\n\n`,
+      );
+      return false;
+    }
   }
   if (result.status === "completed" && quiescent(result)) {
     delete s.awaitingQuestion;
@@ -449,42 +517,6 @@ async function finish(s, b, result) {
     save(s);
     emit(s.id, "Task stopped.");
     return true;
-  }
-  if (
-    !result.pendingApproval &&
-    !result.hasPendingQuestion &&
-    result.childThreadId &&
-    (["failed", "waiting"].includes(result.status) || result.uiQuota)
-  ) {
-    const read = await b.call("t3_thread_read", {
-      threadId: result.childThreadId,
-      view: "activity",
-      limit: 100,
-      runLimit: 1,
-    });
-    if (
-      (quotaEvidence(read, s.pending.runId) ||
-        quotaEvidence({ items: result.uiQuotaEvidence }, s.pending.runId)) &&
-      s.attempts < 6
-    ) {
-      const previous = { ...s.pending };
-      if (!quiescent(result) && !(await confirmStop(s, b))) {
-        emit(s.id, "Provider limited; waiting for its child work to stop before handoff.");
-        return true;
-      }
-      s.cooldowns[previous.providerInstanceId] = Date.now() + 30 * 60000;
-      s.handoff = {
-        threadId: result.childThreadId,
-        text: JSON.stringify(read).slice(-12000),
-      };
-      s.pending = null;
-      save(s);
-      emit(
-        s.id,
-        `\n${providerName(previous.providerInstanceId)} reached a usage limit. Jev is choosing another available provider to continue.\n\n`,
-      );
-      return false;
-    }
   }
   if (result.status === "failed" && quiescent(result)) {
     s.pending = null;
@@ -526,12 +558,38 @@ async function prompt(s, p) {
       }
       if (s.pending?.taskId) {
         let status = await b.call("task_status", { taskId: s.pending.taskId });
-        if (config().ui?.enabled && !quiescent(status))
+        if (config().ui?.enabled && status.childThreadId)
           status = await monitoredStatus(s, b, status);
-        if (status.uiQuestions || quiescent(status)) await finish(s, b, status);
+        if (status.uiQuota)
+          emit(
+            s.id,
+            "The current provider reported a usage limit. Send ‘continue’ to let Jev resume with another available connection.\n\n",
+          );
+        else if (status.uiQuestions || quiescent(status))
+          await finish(s, b, status, { allowFallback: false });
         else emit(s.id, workMessage(status, s.pending.link));
       } else emit(s.id, "Jev is ready. There is no delegated task attached to this chat.\n\n");
       return { stopReason: "end_turn" };
+    }
+    const modeCommand = /^\/(plan|build)(?:\s+([\s\S]*))?$/.exec(userRequest(text).trim());
+    if (modeCommand) {
+      if (s.pending || s.awaitingQuestion) {
+        emit(
+          s.id,
+          "Finish or cancel the attached task before changing its planning mode. Your current work is still attached.\n\n",
+        );
+        return { stopReason: "end_turn" };
+      }
+      s.interactionMode = modeCommand[1] === "plan" ? "plan" : "default";
+      save(s);
+      emit(
+        s.id,
+        s.interactionMode === "plan"
+          ? "Planning mode is on. Jev will inspect and prepare a plan without implementing changes. Use /build when you want implementation.\n\n"
+          : "Build mode is on. Jev will use your existing T3 permissions.\n\n",
+      );
+      text = modeCommand[2]?.trim() ?? "";
+      if (!text) return { stopReason: "end_turn" };
     }
     if (s.awaitingQuestion && !completion && s.pending?.taskId) {
       if (/^\/?(?:stop|cancel|never mind)[.!]?$/i.test(userRequest(text).trim())) {
@@ -607,7 +665,8 @@ async function prompt(s, p) {
       if (text && !completion) s.queue.push(text);
       save(s);
       let status = await b.call("task_status", { taskId: s.pending.taskId });
-      if (config().ui?.enabled && !quiescent(status)) status = await monitoredStatus(s, b, status);
+      if (config().ui?.enabled && status.childThreadId)
+        status = await monitoredStatus(s, b, status);
       if (await finish(s, b, status)) {
         if (s.pending || !s.queue.length) return { stopReason: "end_turn" };
         nextRequest(s, s.queue.shift());
@@ -710,7 +769,7 @@ async function handle(m) {
           promptCapabilities: {},
           mcpCapabilities: {},
         },
-        agentInfo: { name: "Jev Auto", version: "0.3.0" },
+        agentInfo: { name: "Jev Auto", version: "0.3.1" },
         authMethods: [],
       };
     case "session/new": {
@@ -727,6 +786,7 @@ async function handle(m) {
       sessions.set(s.id, s);
       save(s);
       if (p.mcpServers?.length) await connect(s, p.mcpServers);
+      advertiseCommands(s);
       return setupResult(s);
     }
     case "session/load": {
@@ -734,6 +794,7 @@ async function handle(m) {
         throw Error("Session is actively executing and cannot be reloaded");
       const s = load(p.sessionId);
       await connect(s, p.mcpServers ?? []);
+      advertiseCommands(s);
       return setupResult(s);
     }
     case "session/set_model":

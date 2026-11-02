@@ -232,3 +232,28 @@ NodeTest.test(
     NodeAssert.equal(s.counts.running, 1);
   },
 );
+
+NodeTest.test("terminal typed usage limits remain blocked and retain structured evidence", () => {
+  for (const provider of [
+    "claudeAgent",
+    "codex",
+    "grok",
+    "antigravity",
+    "deepseek-api",
+    "kimi-api",
+  ]) {
+    const failure = {
+      class: "usage_limit",
+      code: "api_error_429",
+      message: "Provider allowance unavailable",
+    };
+    const p = projection("main", "parent", provider, "failed", {
+      turnItems: [{ type: "error", runId: "main-run", ordinal: 4, failure }],
+    });
+    const s = workSnapshot({ parentThreadId: "parent", rootThreadId: "main", projections: [p] });
+    NodeAssert.equal(s.quota.length, 1, provider);
+    NodeAssert.deepEqual(s.quota[0].failure, failure);
+    NodeAssert.equal(s.counts.blocked, 1);
+    NodeAssert.notEqual(s.plan[0].status, "completed");
+  }
+});
