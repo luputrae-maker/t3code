@@ -159,6 +159,7 @@ export default defineConfig({
     ignorePatterns: [
       ".repos/**",
       "infra/task-cache/vendor/**",
+      "integrations/jev/skills/**",
       // Macroscope requires one glob per line; Markdown formatting corrupts it.
       ".macroscope/ignore.md",
       ".alchemy",
@@ -194,6 +195,7 @@ export default defineConfig({
       ".repos",
       ".repos/**",
       "infra/task-cache/vendor/**",
+      "integrations/jev/skills/**",
       "dist",
       "dist-electron",
       "node_modules",

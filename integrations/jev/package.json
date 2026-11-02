@@ -1,0 +1,18 @@
+{
+  "name": "jev-auto-t3-macos-kit",
+  "version": "0.3.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "check": "node macos-setup.mjs check",
+    "audit": "node verify-export.mjs"
+  },
+  "dependencies": {
+    "ws": "8.22.1"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

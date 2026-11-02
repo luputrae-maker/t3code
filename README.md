@@ -1,5 +1,25 @@
 # T3 Code
 
+> **Jev workbench fork:** this branch adds automatic provider/model/effort routing, shared starter skills, and main-chat team progress and approval forwarding. The official upstream is [pingdotgg/t3code](https://github.com/pingdotgg/t3code).
+
+## Set up Jev on macOS
+
+Install and open T3 Code, connect your own native agent accounts, then clone this upgrade branch:
+
+```sh
+git clone --branch codex/jev-workbench https://github.com/luputrae-maker/t3code.git
+cd t3code
+npm --prefix integrations/jev ci --ignore-scripts
+node integrations/jev/macos-setup.mjs check
+node integrations/jev/macos-setup.mjs install --set-default
+```
+
+Add your own sensitive `TYPESAFE_API_KEY` in T3's Jev provider settings. Select **Jev Auto / auto**. Use **Permissions → Full access** for commands and edits without routine prompts; T3's separate **Auto** mode can still ask with some providers. Planning-only requests keep native planning mode.
+
+The addon includes 33 starter skills with source records and licenses. Existing skills take precedence; the bundled skills cover a fresh machine. Each person connects their own Figma, Mobbin and other tools. Accounts, keys, chat history and private project data are excluded. Setup preserves existing skill entries and refuses to overwrite a different Jev registration.
+
+See [macOS setup and recovery](integrations/jev/docs/macos-setup.md). Run `npm run jev:test` and `npm run jev:audit` for the addon checks. This is source integration for the installed T3 app; it does not replace the app with a newly built or signed desktop binary. The original T3 installation and development instructions follow.
+
 T3 Code is an "agent harness control surface". It enables control of the agents on your machine with a best-in-class mobile app ([iOS](https://apps.apple.com/us/app/t3-code-remote-claude-more/id6787819824), [Android](https://play.google.com/store/apps/details?id=com.t3tools.t3code)), [web app](https://app.t3.codes) and [Electron-based desktop app](https://t3.codes).
 
 Works with your subscriptions on Claude Code, Codex, Cursor, Grok Build, OpenCode, Google Antigravity, and fx. If they're set up on your computer, T3 Code can control them.

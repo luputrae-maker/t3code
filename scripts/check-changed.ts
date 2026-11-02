@@ -174,8 +174,8 @@ export const comparisonBase = Effect.fn("checkChanged.comparisonBase")(function*
 
 const CODE = /\.[cm]?[jt]sx?$/;
 const TEST = /\.test\.[cm]?[jt]sx?$/;
-// CI runs the .github/scripts tests with `node --test`; vitest passes a failing node:test file.
-const NODE_TEST = /^\.github[/\\]scripts[/\\]/;
+// Vitest can report success for failing node:test suites.
+const NODE_TEST = /^(?:\.github[/\\]scripts[/\\]|integrations[/\\]jev[/\\])/;
 export const splitTests = (tests: Iterable<string>) => {
   const all = [...tests];
   return {

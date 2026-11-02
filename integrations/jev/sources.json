@@ -1,0 +1,202 @@
+{
+  "skills": [
+    {
+      "name": "expo-overview",
+      "repository": "https://github.com/expo/skills",
+      "revision": "a9e5bd3fa00b4e61f632e43f85da73aee1942582",
+      "skillSha256": "c63fb61657430f4d4e266ea9f037b4e63ebd78686b57b6a20f98a4047b144c55"
+    },
+    {
+      "name": "expo-project-structure",
+      "repository": "https://github.com/expo/skills",
+      "revision": "a9e5bd3fa00b4e61f632e43f85da73aee1942582",
+      "skillSha256": "f644f8802b6d3b696401dab56c3bb6236531a9882747ed9529ddb14958562822"
+    },
+    {
+      "name": "expo-native-ui",
+      "repository": "https://github.com/expo/skills",
+      "revision": "a9e5bd3fa00b4e61f632e43f85da73aee1942582",
+      "skillSha256": "a54ee681808bdeece32d9219ce74b5e4f86156d76cc6d00fb21ac2633f44c64f"
+    },
+    {
+      "name": "expo-ui",
+      "repository": "https://github.com/expo/skills",
+      "revision": "a9e5bd3fa00b4e61f632e43f85da73aee1942582",
+      "skillSha256": "59c0a8c7469d380ddc8499f359a4de8dd53268d5f50dbab896c967f8359ec4d6"
+    },
+    {
+      "name": "expo-router",
+      "repository": "https://github.com/expo/skills",
+      "revision": "a9e5bd3fa00b4e61f632e43f85da73aee1942582",
+      "skillSha256": "8f8c08dfdf3149baebe354c1e22f7e54c407d3c19ebe5c1d8b4c782017817f1f"
+    },
+    {
+      "name": "expo-animation",
+      "repository": "https://github.com/expo/skills",
+      "revision": "a9e5bd3fa00b4e61f632e43f85da73aee1942582",
+      "skillSha256": "7af0f5e9aa4ae6887fc7938cb9ec08f8cfa922a5154e15c355d1ac53e8d659fe"
+    },
+    {
+      "name": "expo-data-fetching",
+      "repository": "https://github.com/expo/skills",
+      "revision": "a9e5bd3fa00b4e61f632e43f85da73aee1942582",
+      "skillSha256": "b592a1d7ad181af36ad99209007659b20e6ae05f34f25b95b3b3d30e19c65e51"
+    },
+    {
+      "name": "expo-design-system",
+      "repository": "https://github.com/expo/skills",
+      "revision": "a9e5bd3fa00b4e61f632e43f85da73aee1942582",
+      "skillSha256": "f2f3c6137869b6d4024c372fa608467aa44042b7e25bd5839097213d77f3d138"
+    },
+    {
+      "name": "expo-dev-client",
+      "repository": "https://github.com/expo/skills",
+      "revision": "a9e5bd3fa00b4e61f632e43f85da73aee1942582",
+      "skillSha256": "aef70e6f0fcfb9c80337f2e529da19d440ba0627622376cdc61ab2563525651b"
+    },
+    {
+      "name": "expo-upgrade",
+      "repository": "https://github.com/expo/skills",
+      "revision": "a9e5bd3fa00b4e61f632e43f85da73aee1942582",
+      "skillSha256": "8e9201265d48eba88d9e08a1a364466c8a90b09beb3d0fe5430d94bad38f51e0"
+    },
+    {
+      "name": "eas-app-stores",
+      "repository": "https://github.com/expo/skills",
+      "revision": "a9e5bd3fa00b4e61f632e43f85da73aee1942582",
+      "skillSha256": "1c7ee5a20438b30566321d4605baa9f813da8c7f846cc524a1ef5bfc4651aecc"
+    },
+    {
+      "name": "eas-workflows",
+      "repository": "https://github.com/expo/skills",
+      "revision": "a9e5bd3fa00b4e61f632e43f85da73aee1942582",
+      "skillSha256": "d5a31e9b4f228c74c54c79d2e377c9a72e907267ebbe4ba3d75037ae271121cd"
+    },
+    {
+      "name": "gh-fix-ci",
+      "repository": "https://github.com/openai/skills",
+      "revision": "49f948faa9258a0c61caceaf225e179651397431",
+      "skillSha256": "7b326b4a2f0f5f85122144628ec02077e48841e0e0e82efce88b3415bcfb7c26"
+    },
+    {
+      "name": "gh-address-comments",
+      "repository": "https://github.com/openai/skills",
+      "revision": "49f948faa9258a0c61caceaf225e179651397431",
+      "skillSha256": "77389eefd3fb6584210668ca8e43f4b8de87e7722ddd953474bc9e24cdfaaedd"
+    },
+    {
+      "name": "playwright",
+      "repository": "https://github.com/openai/skills",
+      "revision": "49f948faa9258a0c61caceaf225e179651397431",
+      "skillSha256": "0ffaabcc8e0990627c4725f18bf1c7955534a796c1c199e872909de2013ce6a8"
+    },
+    {
+      "name": "security-threat-model",
+      "repository": "https://github.com/openai/skills",
+      "revision": "49f948faa9258a0c61caceaf225e179651397431",
+      "skillSha256": "1283c0dd62a8104d9edda4583569b5d8510b4ddaa45120687c999250fd96bad2"
+    },
+    {
+      "name": "product-strategy",
+      "repository": "https://github.com/phuryn/pm-skills",
+      "revision": "2a12295a7717569baa7be181b4cfebe3ca38a6bb",
+      "skillSha256": "50d4bfe62ae71a321271a491148e8dca4715a6a7550f82ffba2ded06f036d5b8"
+    },
+    {
+      "name": "pricing-strategy",
+      "repository": "https://github.com/phuryn/pm-skills",
+      "revision": "2a12295a7717569baa7be181b4cfebe3ca38a6bb",
+      "skillSha256": "09321c5984f3654077bd58921ec4b7235f47e00caf44445bd2e5a5ed13bcb895"
+    },
+    {
+      "name": "prioritize-features",
+      "repository": "https://github.com/phuryn/pm-skills",
+      "revision": "2a12295a7717569baa7be181b4cfebe3ca38a6bb",
+      "skillSha256": "d05c001ea9d71ccf6aca975e0530a2a85545192b1eec9e06cc6d1339156c0f87"
+    },
+    {
+      "name": "opportunity-solution-tree",
+      "repository": "https://github.com/phuryn/pm-skills",
+      "revision": "2a12295a7717569baa7be181b4cfebe3ca38a6bb",
+      "skillSha256": "6b23e44a5ace86aa20d64cc130322265ace6a53a29831cc403b974098a379bcc"
+    },
+    {
+      "name": "interview-script",
+      "repository": "https://github.com/phuryn/pm-skills",
+      "revision": "2a12295a7717569baa7be181b4cfebe3ca38a6bb",
+      "skillSha256": "892ca53da9852d4e6516d2305f0c0eb2db370bf39693c6c6797154b44bec9b4c"
+    },
+    {
+      "name": "summarize-interview",
+      "repository": "https://github.com/phuryn/pm-skills",
+      "revision": "2a12295a7717569baa7be181b4cfebe3ca38a6bb",
+      "skillSha256": "5a2a0c8257f5e2f7ef098d4531acbbcd3087bb07bb87d4cabfe1a97ef1ad037c"
+    },
+    {
+      "name": "create-prd",
+      "repository": "https://github.com/phuryn/pm-skills",
+      "revision": "2a12295a7717569baa7be181b4cfebe3ca38a6bb",
+      "skillSha256": "e3aa10a437ed7f748a957bd5d1eb06d8fa3f56dc728dcb93ce484387ecc3fa13"
+    },
+    {
+      "name": "outcome-roadmap",
+      "repository": "https://github.com/phuryn/pm-skills",
+      "revision": "2a12295a7717569baa7be181b4cfebe3ca38a6bb",
+      "skillSha256": "3d2da8f82f4cbe4c8d06593765e2fbb94913676e9a65663b7da9e53c9a0082c8"
+    },
+    {
+      "name": "test-scenarios",
+      "repository": "https://github.com/phuryn/pm-skills",
+      "revision": "2a12295a7717569baa7be181b4cfebe3ca38a6bb",
+      "skillSha256": "2dc10ebb6359604275f26234d3c66c9ccc952e501ad5b685c23a5c0f34f634d4"
+    },
+    {
+      "name": "intended-vs-implemented",
+      "repository": "https://github.com/phuryn/product-engineering",
+      "revision": "389a60c2d826c79750d7051328b6dd06af2eb623",
+      "skillSha256": "a9c8986406ff3308a5671c25b703baaf021acbedcbbe1ba7d719bd98cbdbfe06"
+    },
+    {
+      "name": "product-marketing",
+      "repository": "https://github.com/coreyhaines31/marketingskills",
+      "revision": "88c79f6528a9347420e57ceb1fff9a60de651768",
+      "skillSha256": "19ece0fa75c72a5a8b6e90db80f506586f54cc93bae6bffbb1bd2ef4ae7d603c"
+    },
+    {
+      "name": "copywriting",
+      "repository": "https://github.com/coreyhaines31/marketingskills",
+      "revision": "88c79f6528a9347420e57ceb1fff9a60de651768",
+      "skillSha256": "02f0ab1ddd41d95b3c230d4bcff3de6578c8f2e45776c8ef2e4b931636af5bee"
+    },
+    {
+      "name": "launch",
+      "repository": "https://github.com/coreyhaines31/marketingskills",
+      "revision": "88c79f6528a9347420e57ceb1fff9a60de651768",
+      "skillSha256": "30537ad3f4b0429fcc4053cf6bf04bc0dee316b9e5f7e7ec2e74a9bc44a9ead7"
+    },
+    {
+      "name": "impeccable",
+      "repository": "https://github.com/pbakaus/impeccable",
+      "distribution": "installed licensed skill distribution",
+      "skillVersion": "4.5.2",
+      "engineVersion": "0.1.14",
+      "skillSha256": "58c0252bca04521de87007aeb495f7ec99dc4c7341bc890fe82b6d577573af91"
+    },
+    {
+      "name": "anti-ai-slop",
+      "origin": "local design and writing review guidance",
+      "skillSha256": "12dda5d944737f3d5a7c916bf8eff048db94adb35a7239a9fd303f36388941b7"
+    },
+    {
+      "name": "t3-builder",
+      "origin": "portable local Jev coordinator guidance",
+      "skillSha256": "45a6672565d73d898e83b50d39307ed64f069b44e1affad0dcaf51b9248c53a5"
+    },
+    {
+      "name": "startup-workflow",
+      "origin": "portable local startup coordinator guidance",
+      "skillSha256": "fa1a6719667c73e3e5e91916d0163b81ad909947099411e0c787f91f6ab55843"
+    }
+  ],
+  "privateMachineDataIncluded": false
+}

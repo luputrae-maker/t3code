@@ -1,0 +1,48 @@
+name: Jev integration
+
+on:
+  push:
+    paths:
+      - integrations/jev/**
+      - .github/workflows/jev-integration.yml
+  pull_request:
+    paths:
+      - integrations/jev/**
+      - .github/workflows/jev-integration.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jev-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Jev / ${{ matrix.os }} / Node ${{ matrix.node }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-14]
+        node: ["22", "26.12.1"]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: integrations/jev
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: integrations/jev/package-lock.json
+      - name: Install the addon dependency
+        working-directory: integrations/jev
+        run: npm ci --ignore-scripts
+      - name: Test isolated routing, permissions and setup
+        working-directory: integrations/jev
+        run: npm test
+      - name: Audit the reviewed public file set
+        working-directory: integrations/jev
+        run: node verify-export.mjs --tracked

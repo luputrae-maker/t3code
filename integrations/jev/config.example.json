@@ -1,0 +1,6 @@
+{
+  "allowedInstances": ["claudeAgent", "codex", "grok", "antigravity", "deepseek-api", "kimi-api"],
+  "ui": {
+    "enabled": true
+  }
+}
