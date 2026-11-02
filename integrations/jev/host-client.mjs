@@ -17,8 +17,8 @@ export function localHostOptions(config = {}) {
   )
     throw Error("The T3 UI bridge requires a local loopback endpoint");
   const installed = NodePath.join(
-    NodeOS.homedir(),
-    ".t3/bin",
+    config.baseDir ?? process.env.T3CODE_HOME ?? NodePath.join(NodeOS.homedir(), ".t3"),
+    "bin",
     // oxlint-disable-next-line t3code/no-global-process-runtime -- Standalone ACP tooling has no Effect runtime.
     process.platform === "win32" ? "t3.exe" : "t3",
   );

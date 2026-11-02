@@ -1,3 +1,5 @@
+import { JevTeamPanel } from "./JevTeamPanel";
+import { jevTeamPayloadForEntry } from "./JevTeamPanel.logic";
 import { TimelinePendingApprovalRow } from "./TimelinePendingApprovalRow";
 import { WorkLogDetails, WorkLogRow } from "./WorkLog";
 import {
@@ -151,6 +153,10 @@ type WorkEntryRowProps = {
 
 export const SimpleWorkEntryRow = memo(function SimpleWorkEntryRow(props: WorkEntryRowProps) {
   const ctx = use(TimelineRowCtx);
+  const team = jevTeamPayloadForEntry(props.workEntry);
+  if (team) {
+    return <JevTeamPanel payload={team} timestampFormat={ctx.timestampFormat} />;
+  }
   const item = props.workEntry.projectedItem?.item;
   const childThreadId =
     item?.type === "notification" ? notificationChildThreadId(item.source) : undefined;

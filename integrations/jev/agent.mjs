@@ -20,7 +20,7 @@ import { HostClient, localHostOptions } from "./host-client.mjs";
 import { monitorTask } from "./monitor.mjs";
 import { beginQuestion, answerQuestion, questionPrompt } from "./question-flow.mjs";
 import { approvalToolCall } from "./approval-relay.mjs";
-import { teamMilestone } from "./progress.mjs";
+import { teamMilestone, teamInput, teamMarkdown } from "./progress.mjs";
 const root = NodePath.dirname(NodeURL.fileURLToPath(import.meta.url));
 const stateDir =
   process.env.JEV_T3_STATE ??
@@ -117,7 +117,8 @@ async function monitoredStatus(s, b, result) {
   const teamId = "jev-team-" + s.pending.requestId;
   let signature,
     started = false,
-    previousTeam;
+    previousTeam,
+    lastSnapshot;
   try {
     const relay = await host.isTopLevelProxy(s.hostParentThreadId);
     const monitored = await monitorTask({
@@ -128,6 +129,7 @@ async function monitoredStatus(s, b, result) {
       cancelled: () => !!s.cancelled,
       relay,
       update: (snapshot) => {
+        lastSnapshot = snapshot;
         const compact = {
           rows: snapshot.rows.map(({ threadId: _threadId, ...row }) => row),
           plan: snapshot.plan,
@@ -143,20 +145,15 @@ async function monitoredStatus(s, b, result) {
         sessionUpdate(s, { sessionUpdate: "plan", entries: snapshot.plan.slice(0, 50) });
         const c = snapshot.counts;
         const title = `Team${snapshot.incomplete ? " (partial)" : ""} · ${c.running} working · ${c.waiting} waiting · ${c.blocked} blocked · ${c.completed} done`;
-        const body = [
-          "| Agent | Task | Now |",
-          "| --- | --- | --- |",
-          ...snapshot.rows.map(
-            (r) =>
-              `| ${r.provider} | ${r.title.replaceAll("|", "/")} | ${r.activity.replaceAll("|", "/")} |`,
-          ),
-        ].join("\n");
+        const view = teamInput(snapshot);
+        const body = teamMarkdown(view);
         sessionUpdate(s, {
           sessionUpdate: started ? "tool_call_update" : "tool_call",
           toolCallId: teamId,
           title,
           kind: "other",
           status: "in_progress",
+          rawInput: view,
           content: [{ type: "content", content: { type: "text", text: body } }],
         });
         started = true;
@@ -178,6 +175,7 @@ async function monitoredStatus(s, b, result) {
       sessionUpdate(s, {
         sessionUpdate: "tool_call_update",
         toolCallId: teamId,
+        ...(lastSnapshot ? { rawInput: teamInput(lastSnapshot, false) } : {}),
         status:
           monitored.status === "completed"
             ? "completed"
@@ -187,6 +185,13 @@ async function monitoredStatus(s, b, result) {
       });
     return monitored;
   } catch {
+    if (started && lastSnapshot)
+      sessionUpdate(s, {
+        sessionUpdate: "tool_call_update",
+        toolCallId: teamId,
+        status: "pending",
+        rawInput: teamInput(lastSnapshot, false),
+      });
     emit(
       s.id,
       "The live task view is unavailable. Your task is preserved. Send `/jev-status` here to reconnect, or use its work link.\n\n",
@@ -769,7 +774,7 @@ async function handle(m) {
           promptCapabilities: {},
           mcpCapabilities: {},
         },
-        agentInfo: { name: "Jev Auto", version: "0.3.1" },
+        agentInfo: { name: "Jev Auto", version: "0.4.0" },
         authMethods: [],
       };
     case "session/new": {

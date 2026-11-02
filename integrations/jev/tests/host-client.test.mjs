@@ -232,3 +232,18 @@ NodeTest.test(
     }
   },
 );
+
+NodeTest.test("a custom T3 home uses its own installed CLI for setup and UI reads", async () => {
+  const NodeFS = await import("node:fs"),
+    NodeOS = await import("node:os"),
+    NodePath = await import("node:path");
+  const base = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "jev-home-cli-"));
+  try {
+    const exe = NodePath.join(base, "bin", NodeOS.platform() === "win32" ? "t3.exe" : "t3");
+    NodeFS.mkdirSync(NodePath.dirname(exe));
+    NodeFS.writeFileSync(exe, "fixture");
+    NodeAssert.equal(localHostOptions({ baseDir: base }).cli, exe);
+  } finally {
+    NodeFS.rmSync(base, { recursive: true, force: true });
+  }
+});

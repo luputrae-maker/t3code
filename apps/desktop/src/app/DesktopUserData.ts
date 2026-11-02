@@ -7,7 +7,7 @@ import * as Schema from "effect/Schema";
 export class DesktopUserDataInitializationError extends Schema.TaggedError<DesktopUserDataInitializationError>()(
   "DesktopUserDataInitializationError",
   {
-    operation: Schema.Literals(["inspect", "read", "create-directory", "write"]),
+    operation: Schema.Literals(["validate", "inspect", "read", "create-directory", "write"]),
     resourcePath: Schema.String,
     category: Schema.String,
     cause: Schema.Defect(),
@@ -34,11 +34,35 @@ export class DesktopUserDataInitializationError extends Schema.TaggedError<Deskt
 export const resolveUserDataPath = Effect.fn("desktop.userData.resolveUserDataPath")(
   function* (input: {
     readonly appDataDirectory: string;
+    readonly userDataDirectory?: string | undefined;
     readonly isDevelopment: boolean;
     readonly platform: NodeJS.Platform;
   }) {
     const fs = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
+    const userDataDirectory = input.userDataDirectory;
+    if (userDataDirectory !== undefined) {
+      if (!path.isAbsolute(userDataDirectory)) {
+        return yield* new DesktopUserDataInitializationError({
+          operation: "validate",
+          resourcePath: userDataDirectory,
+          category: "relative-path",
+          cause: "T3CODE_DESKTOP_USER_DATA_DIR must be an absolute path.",
+        });
+      }
+      yield* fs
+        .makeDirectory(userDataDirectory, { recursive: true })
+        .pipe(
+          Effect.mapError((cause) =>
+            DesktopUserDataInitializationError.fromFileSystem(
+              cause,
+              "create-directory",
+              userDataDirectory,
+            ),
+          ),
+        );
+      return userDataDirectory;
+    }
     const names = input.isDevelopment
       ? { current: "t3code-dev", legacy: "T3 Code (Dev)" }
       : { current: "t3code-v2", legacy: "T3 Code (Alpha)" };

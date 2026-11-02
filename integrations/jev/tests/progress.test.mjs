@@ -29,6 +29,7 @@ NodeTest.test(
       ],
       plans: [
         {
+          runId: "main-run",
           steps: [
             { content: "Inspect files", status: "completed" },
             { content: "Combine findings", status: "pending" },
@@ -47,7 +48,14 @@ NodeTest.test(
       ],
     });
     const worker = projection("worker", "router", "codex", "running", {
-      turnItems: [{ type: "file_search", status: "running", title: "Checking navigation routes" }],
+      turnItems: [
+        {
+          type: "file_search",
+          runId: "worker-run",
+          status: "running",
+          title: "Checking navigation routes",
+        },
+      ],
     });
     const s = workSnapshot({
       parentThreadId: "parent",
@@ -256,4 +264,249 @@ NodeTest.test("terminal typed usage limits remain blocked and retain structured 
     NodeAssert.equal(s.counts.blocked, 1);
     NodeAssert.notEqual(s.plan[0].status, "completed");
   }
+});
+
+NodeTest.test(
+  "agent rows preserve exact run model and effort and current-run checklist states",
+  () => {
+    const p = projection("main", "parent", "grok", "completed", {
+      runs: [
+        {
+          id: "main-run",
+          ordinal: 2,
+          status: "completed",
+          providerInstanceId: "grok",
+          modelSelection: {
+            model: "grok-4.7",
+            options: [{ id: "reasoningEffort", value: "high" }],
+          },
+          completedAt: "2026-11-02T20:00:00Z",
+        },
+      ],
+      plans: [
+        { runId: "old", status: "active", steps: [{ text: "Old plan", status: "completed" }] },
+        {
+          runId: "main-run",
+          status: "completed",
+          steps: [
+            { id: "one", text: "Inspect form", status: "completed" },
+            { id: "two", text: "Implement errors", status: "running" },
+            { id: "three", text: "Check result", status: "pending" },
+          ],
+        },
+      ],
+      turnItems: [
+        {
+          id: "old",
+          type: "file_search",
+          runId: "old",
+          title: "Do not include old tools",
+          status: "completed",
+        },
+      ],
+    });
+    const snap = workSnapshot({ parentThreadId: "parent", rootThreadId: "main", projections: [p] });
+    const row = snap.rows[0];
+    NodeAssert.equal(row.model, "grok-4.7");
+    NodeAssert.equal(row.effort, "high");
+    NodeAssert.deepEqual(
+      row.steps.map((s) => s.status),
+      ["completed", "in_progress", "pending"],
+    );
+    NodeAssert.ok(!row.steps.some((s) => /Old|old/.test(s.content)));
+    NodeAssert.equal(row.completedAt, "2026-11-02T20:00:00Z");
+  },
+);
+NodeTest.test(
+  "observed tool checks exclude previous runs and failed commands never receive a success check",
+  () => {
+    const p = projection("main", "parent", "codex", "running", {
+      turnItems: [
+        {
+          id: "old",
+          runId: "old",
+          type: "file_search",
+          status: "completed",
+          ordinal: 1,
+          title: "Old search",
+        },
+        {
+          id: "read",
+          runId: "main-run",
+          type: "file_search",
+          status: "completed",
+          ordinal: 2,
+          title: "Read signup",
+        },
+        {
+          id: "test",
+          runId: "main-run",
+          type: "command_execution",
+          status: "completed",
+          exitCode: 1,
+          ordinal: 3,
+          title: "Run tests",
+        },
+        {
+          id: "edit",
+          runId: "main-run",
+          type: "file_change",
+          status: "running",
+          ordinal: 4,
+          title: "Add validation",
+        },
+      ],
+    });
+    const row = workSnapshot({ parentThreadId: "parent", rootThreadId: "main", projections: [p] })
+      .rows[0];
+    NodeAssert.deepEqual(
+      row.steps.map((s) => [s.content, s.status]),
+      [
+        ["Read signup", "completed"],
+        ["Run tests", "failed"],
+        ["Add validation", "in_progress"],
+      ],
+    );
+    NodeAssert.equal(row.effort, "Provider default");
+  },
+);
+NodeTest.test(
+  "native and app-owned specialists retain hierarchy without counting router wrappers",
+  () => {
+    const root = projection("main", "parent", "claudeAgent", "running", {
+      subagents: [
+        { id: "wrapper", origin: "app_owned", childThreadId: "router", status: "running" },
+        {
+          id: "native",
+          runId: "main-run",
+          origin: "provider_native",
+          childThreadId: null,
+          title: "Check labels",
+          providerInstanceId: "claudeAgent",
+          status: "running",
+          progress: "Inspecting labels",
+          model: null,
+        },
+        {
+          id: "old-native",
+          runId: "old",
+          origin: "provider_native",
+          childThreadId: null,
+          title: "Old specialist",
+          status: "running",
+        },
+      ],
+    });
+    const router = projection("router", "main", "jev-auto", "running", {
+      subagents: [{ origin: "app_owned", childThreadId: "worker", status: "running" }],
+    });
+    const worker = projection("worker", "router", "grok", "running");
+    const s = workSnapshot({
+      parentThreadId: "parent",
+      rootThreadId: "main",
+      projections: [root, router, worker],
+    });
+    NodeAssert.equal(s.rows.length, 3);
+    NodeAssert.equal(s.counts.running, 3);
+    NodeAssert.equal(s.rows.find((r) => r.threadId === "worker").parentThreadId, "main");
+    const native = s.rows.find((r) => r.title === "Check labels");
+    NodeAssert.equal(native.parentThreadId, "main");
+    NodeAssert.equal(native.model, null);
+    NodeAssert.equal(native.effort, "Not reported");
+  },
+);
+
+NodeTest.test(
+  "a finished run's checklist does not invent completion for unfinished plan steps",
+  () => {
+    const p = projection("main", "parent", "codex", "completed", {
+      plans: [
+        {
+          runId: "main-run",
+          status: "active",
+          steps: [{ id: "pending", text: "Deploy", status: "pending" }],
+        },
+      ],
+    });
+    const s = workSnapshot({ parentThreadId: "parent", rootThreadId: "main", projections: [p] });
+    NodeAssert.equal(s.rows[0].steps[0].status, "pending");
+  },
+);
+
+NodeTest.test(
+  "the team input stays within T3's wire limit, retains parents and has a readable old-client fallback",
+  async () => {
+    const progress = await import("../progress.mjs");
+    const rows = Array.from({ length: 30 }, (_, i) => ({
+      threadId: "row-" + i,
+      parentThreadId: i ? "row-0" : null,
+      title: "Review " + i,
+      provider: "Grok",
+      model: "grok-4.7",
+      effort: "high",
+      state: i ? "completed" : "running",
+      activity: "Inspecting signup",
+      steps: Array.from({ length: 12 }, (_, j) => ({
+        id: "step-" + j,
+        content: "界".repeat(180),
+        status: j ? "completed" : "in_progress",
+      })),
+      updatedAt: null,
+      completedAt: null,
+      result: null,
+    }));
+    const input = progress.teamInput?.({ rows, incomplete: false }, true);
+    NodeAssert.equal(input?.kind, "jev.team.v1");
+    NodeAssert.ok(Buffer.byteLength(JSON.stringify(input), "utf8") <= 14000);
+    NodeAssert.equal(input.incomplete, true);
+    const ids = new Set(input.rows.map((r) => r.threadId));
+    NodeAssert.ok(input.rows.every((r) => r.parentThreadId === null || ids.has(r.parentThreadId)));
+    const text = progress.teamMarkdown?.(input) ?? "";
+    NodeAssert.match(text, /grok-4.7/);
+    NodeAssert.match(text, /high/);
+    NodeAssert.match(text, /Working on/);
+    NodeAssert.match(text, /- \[x\]/);
+    NodeAssert.equal(progress.teamInput?.({ rows: [], incomplete: false }, false)?.updating, false);
+  },
+);
+
+NodeTest.test("long checklists keep the current step visible and disclose omitted history", () => {
+  const p = projection("main", "parent", "codex", "running", {
+    plans: [
+      {
+        runId: "main-run",
+        status: "active",
+        steps: Array.from({ length: 20 }, (_, i) => ({
+          id: String(i),
+          text: "Step " + i,
+          status: i === 18 ? "running" : i < 18 ? "completed" : "pending",
+        })),
+      },
+    ],
+  });
+  const s = workSnapshot({ parentThreadId: "parent", rootThreadId: "main", projections: [p] });
+  NodeAssert.ok(
+    s.rows[0].steps.some((step) => step.content === "Step 18" && step.status === "in_progress"),
+  );
+  NodeAssert.equal(s.incomplete, true);
+});
+
+NodeTest.test("a completed MCP call reporting isError is displayed as a failed step", () => {
+  const p = projection("main", "parent", "codex", "running", {
+    turnItems: [
+      {
+        id: "mcp",
+        runId: "main-run",
+        type: "dynamic_tool",
+        status: "completed",
+        title: "Browser check",
+        output: { isError: true },
+      },
+    ],
+  });
+  NodeAssert.equal(
+    workSnapshot({ parentThreadId: "parent", rootThreadId: "main", projections: [p] }).rows[0]
+      .steps[0].status,
+    "failed",
+  );
 });

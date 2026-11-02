@@ -33,6 +33,58 @@ function activity(item) {
     }[item.type] ?? "Working"
   );
 }
+function effort(selection, fallback = "Provider default") {
+  const values = (selection?.options ?? [])
+    .filter((o) => /^(?:effort|reasoningEffort|thinking_level|variant)$/i.test(o.id))
+    .map((o) => o.value)
+    .filter((v) => typeof v === "string");
+  return values.length ? values.join(", ") : fallback;
+}
+function currentSteps(p, run) {
+  const plan = p.plans?.findLast(
+    (x) => x.runId === run?.id && x.steps && x.status !== "superseded",
+  );
+  if (plan) {
+    const active = plan.steps.findIndex((step) => ["running", "in_progress"].includes(step.status));
+    const start = Math.max(0, Math.min(active < 0 ? 0 : active - 4, plan.steps.length - 12));
+    return plan.steps.slice(start, start + 12).map((step, index) => ({
+      id: String(step.id ?? `plan-${index}`),
+      content: clean(step.content ?? step.step ?? step.text, "Task step"),
+      status:
+        step.status === "running"
+          ? "in_progress"
+          : ["completed", "in_progress", "pending"].includes(step.status)
+            ? step.status
+            : "pending",
+    }));
+  }
+  return (p.turnItems ?? [])
+    .filter(
+      (i) =>
+        i.runId === run?.id &&
+        ["command_execution", "file_change", "file_search", "web_search", "dynamic_tool"].includes(
+          i.type,
+        ),
+    )
+    .slice(-8)
+    .map((item, index) => ({
+      id: String(item.id ?? `activity-${index}`),
+      content: activity(item),
+      status:
+        item.status === "failed" ||
+        (item.type === "command_execution" && item.exitCode != null && item.exitCode !== 0) ||
+        item.outputIndicatesFailure === true ||
+        item.output?.isError === true
+          ? "failed"
+          : item.status === "completed"
+            ? "completed"
+            : ["cancelled", "interrupted"].includes(item.status)
+              ? "cancelled"
+              : item.status === "running"
+                ? "in_progress"
+                : "pending",
+    }));
+}
 function requestRecord(p, request) {
   const item = (p.turnItems ?? []).find((i) => i.requestId === request.id);
   if (!item) return null;
@@ -115,6 +167,11 @@ export function workSnapshot({ parentThreadId, rootThreadId, projections, incomp
           failure: f.failure,
           retry: f.retry,
         });
+    if (
+      (p.plans?.findLast((x) => x.runId === run?.id && x.steps && x.status !== "superseded")?.steps
+        .length ?? 0) > 12
+    )
+      incomplete = true;
     const provider = run?.providerInstanceId ?? p.thread.modelSelection?.instanceId;
     if (provider === "jev-auto") continue; // Routers are not additional working models.
     const childWork = (p.subagents ?? []).filter((t) =>
@@ -138,6 +195,7 @@ export function workSnapshot({ parentThreadId, rootThreadId, projections, incomp
     const recent = (p.turnItems ?? [])
       .filter(
         (i) =>
+          i.runId === run?.id &&
           i.type !== "approval_request" &&
           i.type !== "user_input_request" &&
           i.type !== "checkpoint",
@@ -163,9 +221,21 @@ export function workSnapshot({ parentThreadId, rootThreadId, projections, incomp
       threadId: p.thread.id,
       title,
       provider: providerName(provider),
-      model: run?.modelSelection?.model ?? p.thread.modelSelection?.model,
+      model: run?.modelSelection?.model ?? p.thread.modelSelection?.model ?? null,
+      effort: effort(run?.modelSelection ?? p.thread.modelSelection),
+      parentThreadId:
+        p.thread.id === rootThreadId ? null : (p.thread.lineage?.parentThreadId ?? null),
       state,
       activity: observed,
+      steps: currentSteps(p, run),
+      updatedAt: recent?.updatedAt ?? run?.updatedAt ?? run?.completedAt ?? null,
+      completedAt: run?.completedAt ?? null,
+      result:
+        state === "completed"
+          ? ((p.turnItems ?? [])
+              .findLast((i) => i.runId === run?.id && i.type === "assistant_message")
+              ?.text?.slice(0, 600) ?? null)
+          : null,
     });
     const label = {
       running: "Working",
@@ -179,18 +249,60 @@ export function workSnapshot({ parentThreadId, rootThreadId, projections, incomp
       priority: "medium",
       status: state === "completed" ? "completed" : state === "running" ? "in_progress" : "pending",
     });
-    for (const step of p.plans?.findLast((x) => x.steps && x.status !== "superseded")?.steps ??
-      []) {
+    for (const step of rows.at(-1).steps) {
       plan.push({
-        content: `${title}: ${clean(step.content ?? step.step ?? step.text, "Task step")}`,
+        content: `${title}: ${step.content}`,
         priority: "medium",
-        status:
-          step.status === "running"
-            ? "in_progress"
-            : ["completed", "in_progress", "pending"].includes(step.status)
-              ? step.status
-              : "pending",
+        status: ["completed", "in_progress"].includes(step.status) ? step.status : "pending",
       });
+    }
+    for (const child of p.subagents ?? []) {
+      if (child.origin !== "provider_native" || child.childThreadId || child.runId !== run?.id)
+        continue;
+      const childState =
+        child.status === "completed"
+          ? "completed"
+          : ["failed", "cancelled", "interrupted"].includes(child.status)
+            ? "failed"
+            : ["waiting", "pending", "idle"].includes(child.status)
+              ? "waiting"
+              : "running";
+      counts[childState]++;
+      rows.push({
+        threadId: `native:${p.thread.id}:${child.id}`,
+        parentThreadId: p.thread.id,
+        title: clean(child.title, "Native specialist"),
+        provider: providerName(child.providerInstanceId ?? provider),
+        model: child.modelSelection?.model ?? child.model ?? null,
+        effort: effort(child.modelSelection, "Not reported"),
+        state: childState,
+        activity: clean(
+          child.progress,
+          childState === "completed"
+            ? "Finished"
+            : childState === "waiting"
+              ? "Waiting"
+              : childState === "failed"
+                ? "Stopped / failed"
+                : "Working",
+        ),
+        steps: [],
+        updatedAt: child.updatedAt ?? null,
+        completedAt: child.completedAt ?? null,
+        result: childState === "completed" ? (child.result?.slice(0, 600) ?? null) : null,
+      });
+    }
+  }
+  const rowIds = new Set(rows.map((row) => row.threadId));
+  for (const row of rows) {
+    const seen = new Set([row.threadId]);
+    while (row.parentThreadId && !rowIds.has(row.parentThreadId)) {
+      if (seen.has(row.parentThreadId)) {
+        row.parentThreadId = null;
+        break;
+      }
+      seen.add(row.parentThreadId);
+      row.parentThreadId = family.get(row.parentThreadId)?.thread.lineage?.parentThreadId ?? null;
     }
   }
   if (incomplete)
@@ -238,4 +350,72 @@ export function teamMilestone(snapshot, previous) {
       .join("\n") +
     "\n\n"
   );
+}
+
+export function teamInput(snapshot, updating = true) {
+  const text = (value, length = 600) => String(value ?? "").slice(0, length);
+  const date = (value) =>
+    typeof value === "string" && Number.isFinite(Date.parse(value)) ? value : null;
+  const id = (value) =>
+    "agent:" + NodeCrypto.createHash("sha256").update(String(value)).digest("hex").slice(0, 32);
+  const rows = snapshot.rows.slice(0, 30).map((row) => ({
+    threadId: id(row.threadId),
+    parentThreadId: row.parentThreadId ? id(row.parentThreadId) : null,
+    title: text(row.title, 180),
+    provider: text(row.provider, 180),
+    model: row.model ? text(row.model, 300) : null,
+    effort: text(row.effort ?? "Provider default", 180),
+    state: row.state,
+    activity: text(row.activity, 180),
+    steps: (row.steps ?? []).slice(0, 12).map((step, index) => ({
+      id: `${index}:${text(step.id, 200)}`,
+      content: text(step.content, 180),
+      status: step.status,
+    })),
+    updatedAt: date(row.updatedAt),
+    completedAt: date(row.completedAt),
+    result: row.result ? text(row.result) : null,
+  }));
+  const result = {
+    kind: "jev.team.v1",
+    updating,
+    incomplete: !!snapshot.incomplete || snapshot.rows.length > rows.length,
+    rows,
+  };
+  while (Buffer.byteLength(JSON.stringify(result), "utf8") >= 14000) {
+    result.incomplete = true;
+    if (rows.length > 1) rows.pop();
+    else if (rows[0]?.steps.length) {
+      const removable = rows[0].steps.findLastIndex((step) => step.status !== "in_progress");
+      rows[0].steps.splice(removable >= 0 ? removable : rows[0].steps.length - 1, 1);
+    } else break;
+  }
+  const ids = new Set(rows.map((row) => row.threadId));
+  for (const row of rows) if (!ids.has(row.parentThreadId)) row.parentThreadId = null;
+  return result;
+}
+
+export function teamMarkdown(input) {
+  const escape = (value) =>
+    String(value ?? "")
+      .replace(/\s+/g, " ")
+      .replace(/([\\`*_{}[\]<>#|])/g, "\\$1");
+  return [
+    "### Agent activity",
+    ...input.rows.flatMap((row) => [
+      `**${escape(row.title)}** · ${escape(row.provider)} · ${escape(row.model ?? "Model not reported")} · ${escape(row.effort)}`,
+      `**${{ running: "Working on", waiting: "Waiting", blocked: "Blocked", completed: "Done", failed: "Stopped / failed" }[row.state]}:** ${escape(row.activity)}`,
+      ...row.steps.map(
+        (step) =>
+          `- [${step.status === "completed" ? "x" : " "}] ${step.status === "in_progress" ? "**Working on:** " : step.status === "failed" ? "**Failed:** " : step.status === "cancelled" ? "**Stopped:** " : ""}${escape(step.content)}`,
+      ),
+      ...(row.result ? [`Result: ${escape(row.result)}`] : []),
+      "",
+    ]),
+    ...(input.incomplete ? ["Some activity is outside this overview."] : []),
+    ...(!input.updating &&
+    input.rows.some((row) => ["running", "waiting", "blocked"].includes(row.state))
+      ? ["Live updates paused. Send /jev-status to reconnect to the same work."]
+      : []),
+  ].join("\n\n");
 }

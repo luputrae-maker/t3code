@@ -1,3 +1,4 @@
+import { jevTeamPayloadForEntry } from "./JevTeamPanel.logic";
 import { worktreeSetupAgentStarted } from "@t3tools/client-runtime/worktree-setup";
 import { resolveUserMessagePresentation } from "@t3tools/client-runtime/user-message";
 import { isLiveSubagentTurnItem } from "@t3tools/client-runtime/state/subagentRuntime";
@@ -269,6 +270,7 @@ export function workEntryIsVisibleInGroup(
   entry: WorkLogEntry,
   expandedToolGroupEntry = false,
 ): boolean {
+  if (jevTeamPayloadForEntry(entry)) return true;
   if (entry.itemType === "reasoning") return Boolean(entry.detail?.trim());
   return (
     (expandedToolGroupEntry &&
@@ -1142,6 +1144,7 @@ function deriveTurnFolds(input: {
       ) {
         continue;
       }
+      if (entry.kind === "work" && jevTeamPayloadForEntry(entry.entry)) continue;
       if (entry.kind === "work" && entry.entry.itemType === "notification") continue;
       if (entry.kind === "work" && entry.entry.questionAnswer !== undefined) continue;
       hiddenEntryIds.add(entry.id);
@@ -1511,6 +1514,7 @@ export function deriveMessagesTimelineRows(input: {
       const entry = timelineEntries[index]!;
       if (
         entry.kind !== "work" ||
+        jevTeamPayloadForEntry(entry.entry) !== null ||
         entry.entry.tone === "error" ||
         entry.entry.sourceActivityKind === "runtime.error" ||
         entry.entry.itemType === "system_notice" ||
@@ -1800,6 +1804,7 @@ export function deriveMessagesTimelineRows(input: {
     if (timelineEntry.kind === "work") {
       if (
         isPendingApproval(timelineEntry.entry) ||
+        jevTeamPayloadForEntry(timelineEntry.entry) !== null ||
         (timelineEntry.entry.runId != null && itemizedRunIds.has(timelineEntry.entry.runId)) ||
         (timelineEntry.entry.itemType === "error" &&
           timelineEntry.entry.toolLifecycleStatus === "failed") ||
@@ -1825,6 +1830,7 @@ export function deriveMessagesTimelineRows(input: {
         if (
           !nextEntry ||
           nextEntry.kind !== "work" ||
+          jevTeamPayloadForEntry(nextEntry.entry) !== null ||
           nextEntry.entry.sourceActivityKind === "context-compaction" ||
           (nextEntry.entry.itemType === "error" &&
             nextEntry.entry.toolLifecycleStatus === "failed") ||

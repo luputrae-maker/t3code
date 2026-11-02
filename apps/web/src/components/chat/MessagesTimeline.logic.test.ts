@@ -54,6 +54,101 @@ describe("resolveAssistantMessageCopyState", () => {
 });
 
 describe("deriveMessagesTimelineRows", () => {
+  it.each([false, true])(
+    "keeps Jev team essentials outside collapsed activity while working: %s",
+    (isWorking) => {
+      const at = "2026-11-02T12:00:00Z";
+      const runId = RunId.make("jev-run");
+      const input = {
+        kind: "jev.team.v1",
+        updating: isWorking,
+        incomplete: false,
+        rows: [
+          {
+            threadId: "main",
+            parentThreadId: null,
+            title: "Implement signup",
+            provider: "Codex",
+            model: "gpt-6.1-sol",
+            effort: "high",
+            state: isWorking ? "running" : "completed",
+            activity: "Add errors",
+            steps: [],
+            updatedAt: at,
+            completedAt: null,
+            result: null,
+          },
+        ],
+      };
+      const work = (id: string): Extract<TimelineEntry, { kind: "work" }> => ({
+        kind: "work",
+        id,
+        createdAt: at,
+        entry: {
+          id,
+          runId,
+          createdAt: at,
+          label: "Tool",
+          tone: "tool",
+          itemType: "dynamic_tool",
+          toolLifecycleStatus: isWorking ? "inProgress" : "completed",
+        },
+      });
+      const teamWork = work("team");
+      const fixture = makeStreamingTimelineFixture();
+      const source = fixture.visibleTurnItems.find((row) => row.item.type === "dynamic_tool")!;
+      if (source.item.type !== "dynamic_tool") throw new Error("Expected dynamic tool fixture");
+      const team = {
+        ...teamWork,
+        entry: { ...teamWork.entry, structuredPayload: { ...source.item, input } },
+      };
+      const rows = deriveMessagesTimelineRows({
+        timelineEntries: [
+          work("before"),
+          team,
+          work("after"),
+          ...(!isWorking
+            ? [
+                {
+                  kind: "message" as const,
+                  id: "answer",
+                  createdAt: at,
+                  message: {
+                    id: MessageId.make("answer"),
+                    role: "assistant" as const,
+                    text: "Signup ready",
+                    runId,
+                    streaming: false,
+                    createdAt: at,
+                    updatedAt: at,
+                  },
+                },
+              ]
+            : []),
+        ],
+        latestRun: {
+          runId,
+          status: isWorking ? "running" : "completed",
+          startedAt: at,
+          completedAt: isWorking ? null : at,
+        },
+        runningRunId: isWorking ? runId : null,
+        isWorking,
+        activeTurnStartedAt: at,
+        turnDiffSummaries: [],
+        supportsConversationRollback: false,
+      });
+      expect(
+        rows.find((row) => row.kind === "work" && row.groupedEntries.includes(team.entry)),
+      ).toMatchObject({ kind: "work", groupedEntries: [team.entry], isExpandedToolGroup: false });
+      expect(
+        rows
+          .filter((row) => row.kind === "work-toggle" || row.kind === "work-live")
+          .flatMap((row) => (row.kind === "work-live" ? row.groupedEntries : [])),
+      ).not.toContain(team.entry);
+    },
+  );
+
   it("stops stranded thinking after a steer and follows the next thought or tool", () => {
     const runId = RunId.make("steered-run");
     const at = "2026-10-01T06:19:10Z";
