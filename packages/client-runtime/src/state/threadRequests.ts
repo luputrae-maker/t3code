@@ -388,3 +388,47 @@ export function createChildThreadApprovalsAtom(input: {
   const empty = Atom.make<ReadonlyArray<ChildThreadApproval>>([]);
   return (ref: ScopedThreadRef | null) => (ref === null ? empty : family(threadKey(ref)));
 }
+
+export interface ChildThreadUserInput {
+  readonly thread: ScopedThreadRef;
+  readonly title: string;
+  readonly userInput: ThreadPendingUserInput;
+}
+
+export function createChildThreadUserInputsAtom(input: {
+  readonly childThreadInputsAtom: (
+    ref: ScopedThreadRef,
+  ) => Atom.Atom<ReadonlyArray<EnvironmentThreadShell>>;
+  readonly pendingRequestsAtom: (ref: ScopedThreadRef) => Atom.Atom<PendingThreadRequests | null>;
+}) {
+  const family = Atom.family((key: string) => {
+    let previous: ReadonlyArray<ChildThreadUserInput> = [];
+    return Atom.make((get) => {
+      const next = get(input.childThreadInputsAtom(parseThreadKey(key))).flatMap((child) => {
+        if (!child.hasPendingUserInput) return [];
+        const thread = { environmentId: child.environmentId, threadId: child.id };
+        return (get(input.pendingRequestsAtom(thread))?.userInputs ?? []).map((userInput) => ({
+          thread,
+          title: child.title,
+          userInput,
+        }));
+      });
+      if (
+        next.length === previous.length &&
+        next.every((entry, index) => {
+          const old = previous[index]!;
+          return (
+            old.userInput === entry.userInput &&
+            old.title === entry.title &&
+            threadKey(old.thread) === threadKey(entry.thread)
+          );
+        })
+      )
+        return previous;
+      previous = next;
+      return next;
+    });
+  });
+  const empty = Atom.make<ReadonlyArray<ChildThreadUserInput>>([]);
+  return (ref: ScopedThreadRef | null) => (ref === null ? empty : family(threadKey(ref)));
+}

@@ -10,6 +10,8 @@ import { useState } from "react";
 import { useEnvironmentScope } from "../../state/session";
 import { childThreadApprovalsAtom, threadEnvironment } from "../../state/threads";
 import { useAtomCommand } from "../../state/use-atom-command";
+import { ChildQuestion } from "./ChildThreadQuestions";
+import { childThreadUserInputsAtom } from "../../state/threads";
 import { ComposerPendingApprovalActions } from "./ComposerPendingApprovalActions";
 
 function ChildApproval({ entry }: { entry: ChildThreadApproval }) {
@@ -75,11 +77,22 @@ function ChildApproval({ entry }: { entry: ChildThreadApproval }) {
   );
 }
 
-export function ChildThreadApprovals({ threadRef }: { threadRef: ScopedThreadRef | null }) {
+export function ChildThreadRequests({ threadRef }: { threadRef: ScopedThreadRef | null }) {
   const approvals = useAtomValue(childThreadApprovalsAtom(threadRef));
-  if (approvals.length === 0) return null;
+  const questions = useAtomValue(childThreadUserInputsAtom(threadRef));
+  if (approvals.length === 0 && questions.length === 0) return null;
   return (
     <div className="mb-2 flex max-h-80 flex-col gap-2 overflow-auto">
+      {questions.map((entry) => (
+        <ChildQuestion
+          key={JSON.stringify([
+            entry.thread.environmentId,
+            entry.thread.threadId,
+            entry.userInput.requestId,
+          ])}
+          entry={entry}
+        />
+      ))}
       {approvals.map((entry) => (
         <ChildApproval
           key={JSON.stringify([

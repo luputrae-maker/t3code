@@ -90,8 +90,8 @@ export function buildMacosApp({ sourceApp, destination, readPlist = plistValue }
 <key>CFBundleIdentifier</key><string>app.jev.t3</string>
 <key>CFBundleExecutable</key><string>jev-t3</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleVersion</key><string>4</string>
-<key>CFBundleShortVersionString</key><string>0.4.0</string>
+<key>CFBundleVersion</key><string>5</string>
+<key>CFBundleShortVersionString</key><string>0.4.1</string>
 ${hasIcon ? "<key>CFBundleIconFile</key><string>Jev.icns</string>" : ""}
 <key>NSHighResolutionCapable</key><true/>
 </dict></plist>

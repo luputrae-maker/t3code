@@ -774,7 +774,7 @@ async function handle(m) {
           promptCapabilities: {},
           mcpCapabilities: {},
         },
-        agentInfo: { name: "Jev Auto", version: "0.4.0" },
+        agentInfo: { name: "Jev Auto", version: "0.4.1" },
         authMethods: [],
       };
     case "session/new": {

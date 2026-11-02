@@ -17,6 +17,7 @@ import { v2Now, v2Projection, v2ThreadShell } from "./orchestrationV2TestFixture
 import {
   createQuestionHistoryProjector,
   createChildThreadApprovalsAtom,
+  createChildThreadUserInputsAtom,
   type PendingThreadRequests,
   derivePendingThreadRequests,
   declinePendingApprovals,
@@ -411,6 +412,55 @@ it("loads only child approvals and retains their destination across environments
       .map((child) => ({ ...child, hasPendingApprovals: false, hasPendingUserInput: true })),
   );
   expect(registry.get(approvalsAtom(parent))).toEqual([]);
+  expect(readDetails).not.toHaveBeenCalled();
+  unmount();
+  registry.dispose();
+});
+
+it("subscribes only to children with questions and keeps their environment when requests resolve", () => {
+  const local = EnvironmentId.make("local");
+  const remote = EnvironmentId.make("remote");
+  const parent = { environmentId: local, threadId: ThreadId.make("parent") };
+  const childId = ThreadId.make("child");
+  const children = Atom.make(
+    [local, remote].map((environmentId) => ({
+      ...presentThreadShell(environmentId, v2ThreadShell),
+      id: childId,
+      title: environmentId,
+      hasPendingApprovals: false,
+      hasPendingUserInput: true,
+    })),
+  );
+  const question = derivePendingThreadRequests(projection).userInputs[0]!;
+  const details = Atom.family((key: string) =>
+    Atom.make<PendingThreadRequests | null>({
+      approvals: [],
+      userInputs: [{ ...question, requestId: RuntimeRequestId.make(key) }],
+    }),
+  );
+  const readDetails = vi.fn((ref: ScopedThreadRef) => details(threadKey(ref)));
+  const questions = createChildThreadUserInputsAtom({
+    childThreadInputsAtom: () => children,
+    pendingRequestsAtom: readDetails,
+  });
+  const registry = AtomRegistry.make();
+  const unmount = registry.mount(questions(parent));
+  const pending = registry.get(questions(parent));
+  expect(pending.map((entry) => entry.thread)).toEqual([
+    { environmentId: local, threadId: childId },
+    { environmentId: remote, threadId: childId },
+  ]);
+  registry.set(details(threadKey({ environmentId: remote, threadId: childId })), {
+    approvals: [],
+    userInputs: [],
+  });
+  expect(registry.get(questions(parent))).toEqual([pending[0]]);
+  readDetails.mockClear();
+  registry.set(
+    children,
+    registry.get(children).map((child) => ({ ...child, hasPendingUserInput: false })),
+  );
+  expect(registry.get(questions(parent))).toEqual([]);
   expect(readDetails).not.toHaveBeenCalled();
   unmount();
   registry.dispose();
