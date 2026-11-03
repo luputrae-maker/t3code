@@ -178,3 +178,34 @@ NodeTest.test(
     }
   },
 );
+
+NodeTest.test(
+  "OpenRouter is billed as API usage and cannot be described as a subscription",
+  async () => {
+    const calls = [];
+    const d = await route(
+      [
+        {
+          id: "r0",
+          providerInstanceId: "openrouter-api",
+          model: "openrouter/fixture/coder",
+          options: [],
+        },
+      ],
+      { request: "Build the feature" },
+      async (body) => {
+        calls.push(body);
+        return calls.length === 1
+          ? { answers: { provider: { choice: "openrouter-api" }, kind: { choice: "coding" } } }
+          : { answers: { selection: { choice: "r0" }, basis: { choice: "subscription" } } };
+      },
+    );
+    NodeAssert.equal(
+      calls[0].questions.provider.criteria["openrouter-api"].access,
+      "pay-as-you-go API",
+    );
+    NodeAssert.equal(d.basis, "uncertain");
+    NodeAssert.match(routeMessage(d), /OpenRouter/);
+    NodeAssert.doesNotMatch(routeMessage(d), /openrouter-api/);
+  },
+);

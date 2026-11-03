@@ -154,3 +154,48 @@ NodeTest.test(
     );
   },
 );
+
+NodeTest.test(
+  "a configured model shortlist bounds OpenRouter without narrowing other providers",
+  () => {
+    const source = {
+      providers: [
+        {
+          providerInstanceId: "openrouter-api",
+          canRunChildTask: true,
+          models: [
+            {
+              id: "openrouter/fixture/coder",
+              options: [{ id: "variant", values: ["low", "high"] }],
+            },
+            { id: "openrouter/fixture/other" },
+          ],
+        },
+        { providerInstanceId: "codex", canRunChildTask: true, models: [{ id: "native-model" }] },
+      ],
+    };
+    const result = candidates(source, ["openrouter-api", "codex"], {}, 0, {
+      "openrouter-api": ["openrouter/fixture/coder"],
+    });
+    NodeAssert.deepEqual(
+      result.map((c) => [c.providerInstanceId, c.model, c.options]),
+      [
+        ["openrouter-api", "openrouter/fixture/coder", [{ id: "variant", value: "low" }]],
+        ["openrouter-api", "openrouter/fixture/coder", [{ id: "variant", value: "high" }]],
+        ["codex", "native-model", []],
+      ],
+    );
+    for (const list of [[], ["missing-model"], "invalid"]) {
+      NodeAssert.equal(
+        candidates(source, ["openrouter-api"], {}, 0, { "openrouter-api": list }).length,
+        0,
+      );
+    }
+    NodeAssert.equal(
+      candidates(source, ["openrouter-api"], { "openrouter-api": 100 }, 0, {
+        "openrouter-api": ["openrouter/fixture/coder"],
+      }).length,
+      0,
+    );
+  },
+);

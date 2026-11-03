@@ -26,7 +26,7 @@ export async function route(pool, context, ask) {
             id,
             {
               provider: id,
-              access: ["deepseek-api", "kimi-api"].includes(id)
+              access: ["deepseek-api", "kimi-api", "openrouter-api"].includes(id)
                 ? "pay-as-you-go API"
                 : "existing subscription",
               models: [
@@ -111,7 +111,7 @@ export async function route(pool, context, ask) {
         criteria: {
           task_fit: "The model family suits this requested work",
           subscription:
-            "Similarly suitable options; prefer existing subscription usage (not valid for Kimi or DeepSeek API)",
+            "Similarly suitable options; prefer existing subscription usage (not valid for Kimi, DeepSeek or OpenRouter API)",
           user_preference: "The user explicitly requested this selected provider",
           speed: "The user task is lightweight and minimizing overhead is the priority",
           quality: "The task needs extra care for complexity or consequences",
@@ -122,7 +122,8 @@ export async function route(pool, context, ask) {
   });
   const reportedBasis = value(second.answers?.basis) ?? "uncertain";
   const basis =
-    reportedBasis === "subscription" && ["deepseek-api", "kimi-api"].includes(provider)
+    reportedBasis === "subscription" &&
+    ["deepseek-api", "kimi-api", "openrouter-api"].includes(provider)
       ? "uncertain"
       : reportedBasis;
   return {

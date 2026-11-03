@@ -681,7 +681,13 @@ async function prompt(s, p) {
       const c = config();
       const catalog = await b.call("orchestrator_capabilities", {});
       s.hostParentThreadId = catalog.parentThreadId ?? s.hostParentThreadId;
-      const pool = candidates(catalog, c.allowedInstances, s.cooldowns);
+      const pool = candidates(
+        catalog,
+        c.allowedInstances,
+        s.cooldowns,
+        Date.now(),
+        c.modelAllowlist,
+      );
       const target = await choose(s, pool, s.request);
       emit(s.id, routeMessage(target));
       if (s.cancelled) return { stopReason: "cancelled" };
@@ -774,7 +780,7 @@ async function handle(m) {
           promptCapabilities: {},
           mcpCapabilities: {},
         },
-        agentInfo: { name: "Jev Auto", version: "0.4.2" },
+        agentInfo: { name: "Jev Auto", version: "0.4.3" },
         authMethods: [],
       };
     case "session/new": {

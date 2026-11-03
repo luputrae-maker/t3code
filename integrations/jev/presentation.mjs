@@ -5,6 +5,7 @@ const names = {
   antigravity: "Antigravity",
   "deepseek-api": "DeepSeek",
   "kimi-api": "Kimi",
+  "openrouter-api": "OpenRouter",
 };
 export const providerName = (id) => names[id] ?? id;
 export function userRequest(text) {
@@ -42,7 +43,9 @@ export const taskTitle = (text) =>
     .replace(/\s+/g, " ")
     .slice(0, 80);
 function modelName(target) {
-  const raw = target.modelLabel ?? target.model ?? "";
+  const label = target.modelLabel ?? target.model ?? "";
+  const raw =
+    target.providerInstanceId === "openrouter-api" ? label.replace(/^openrouter\//i, "") : label;
   const claude = /^claude-(opus|sonnet|haiku|fable)-([\d.-]+)$/i.exec(raw);
   if (claude)
     return (

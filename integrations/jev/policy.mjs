@@ -1,4 +1,10 @@
-export function candidates(catalog, allowed, cooldowns, now = Date.now()) {
+export function candidates(catalog, allowed, cooldowns, now = Date.now(), modelAllowlist = {}) {
+  if (
+    modelAllowlist === null ||
+    typeof modelAllowlist !== "object" ||
+    Array.isArray(modelAllowlist)
+  )
+    throw Error("Model allowlist must map provider instance ids to model id arrays");
   const result = [];
   for (const p of catalog.providers ?? []) {
     if (
@@ -8,7 +14,10 @@ export function candidates(catalog, allowed, cooldowns, now = Date.now()) {
     )
       continue;
     for (const m of p.models ?? []) {
-      const effort = (m.options ?? []).find((o) => /effort|reasoning|thinking/i.test(o.id));
+      const shortlist = modelAllowlist[p.providerInstanceId];
+      if (shortlist !== undefined && (!Array.isArray(shortlist) || !shortlist.includes(m.id)))
+        continue;
+      const effort = (m.options ?? []).find((o) => /effort|reasoning|thinking|variant/i.test(o.id));
       const values = effort?.values?.filter((v) => typeof v === "string") ?? [];
       for (const value of values.length ? values : [null])
         result.push({

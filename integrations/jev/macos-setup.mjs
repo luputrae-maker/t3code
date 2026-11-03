@@ -4,7 +4,15 @@ import * as NodePath from "node:path";
 import * as NodeURL from "node:url";
 import { HostClient, localHostOptions } from "./host-client.mjs";
 const root = NodePath.dirname(NodeURL.fileURLToPath(import.meta.url));
-const defaults = ["claudeAgent", "codex", "grok", "antigravity", "deepseek-api", "kimi-api"];
+const defaults = [
+  "claudeAgent",
+  "codex",
+  "grok",
+  "antigravity",
+  "deepseek-api",
+  "kimi-api",
+  "openrouter-api",
+];
 export function providerRegistration({
   directory,
   node = process.execPath,
