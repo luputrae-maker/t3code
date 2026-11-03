@@ -576,7 +576,7 @@ async function prompt(s, p) {
       } else emit(s.id, "Jev is ready. There is no delegated task attached to this chat.\n\n");
       return { stopReason: "end_turn" };
     }
-    const modeCommand = /^\/(plan|build)(?:\s+([\s\S]*))?$/.exec(userRequest(text).trim());
+    const modeCommand = /^\/\s*(plan|build)(?:\s+([\s\S]*))?$/.exec(userRequest(text).trim());
     if (modeCommand) {
       if (s.pending || s.awaitingQuestion) {
         emit(
@@ -774,7 +774,7 @@ async function handle(m) {
           promptCapabilities: {},
           mcpCapabilities: {},
         },
-        agentInfo: { name: "Jev Auto", version: "0.4.1" },
+        agentInfo: { name: "Jev Auto", version: "0.4.2" },
         authMethods: [],
       };
     case "session/new": {

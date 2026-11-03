@@ -74,16 +74,6 @@ export async function route(pool, context, ask) {
           review: "Main work with one useful independent review",
         },
       },
-      scope: {
-        type: "choice",
-        instructions:
-          "Did the user request implementation now, or only inspection, discussion, design specification, research or a plan? Planning-only must not become file changes. This classification never grants permissions; T3 permissions stay inherited.",
-        criteria: {
-          execute: "Implementation or execution is requested, within existing authorization",
-          plan_only:
-            "Only inspect, research, discuss, review or plan; no implementation requested now",
-        },
-      },
     },
   });
   const value = (a) => a?.choice ?? a?.value ?? a?.selected;
@@ -96,7 +86,7 @@ export async function route(pool, context, ask) {
     ? proposedStack
     : "general";
   const proposedTeam = value(first.answers?.collaboration);
-  const scope = value(first.answers?.scope) === "plan_only" ? "plan_only" : "execute";
+  const scope = context.interactionMode === "plan" ? "plan_only" : "execute";
   let collaboration =
     !context.leaf && ["solo", "parallel_read", "parallel_build", "review"].includes(proposedTeam)
       ? proposedTeam

@@ -59,3 +59,5 @@ The `Jev T3.app` launcher uses `~/.t3-jev` and a separate Electron profile under
 The macOS download is an Apple Silicon preview with an ad-hoc signature; it is not notarized by Apple. Extract it, move the app to a permanent Applications folder, and use macOS’s Open approval if prompted. Pin the outer `Jev T3.app` launcher to the Dock. Do not disable Gatekeeper. No accounts, API keys, pairing links or application databases are included. Update the custom app deliberately from this fork; its launcher disables upstream automatic updates.
 
 To package an already built desktop bundle, run `node macos-app.mjs --source-app /path/to/T3.app --destination /path/to/Jev\ T3.app`. The wrapper contains the built client only; install the separately provided Jev addon and your own provider sign-ins. Source builds use the repository’s pinned toolchain and `dist:desktop:artifact` command.
+
+Plan mode is opt-in. Send `/plan` (or `/plan your task`) to enable it, and `/build` to return to direct execution. Ordinary requests do not turn plan mode on automatically. The 0.4.2 addon works with the existing 0.4.1 custom app; this routing change does not require a new desktop build.

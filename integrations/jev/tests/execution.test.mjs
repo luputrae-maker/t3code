@@ -152,7 +152,7 @@ NodeTest.test(
   },
 );
 NodeTest.test(
-  "the actual native delegation receives Jev’s workflow and existing skill paths with the original planning-only request",
+  "ordinary implementation stays in build mode even when Jev proposes planning only",
   async () => {
     const c = await client(false, {
       FIXTURE_JEV_KIND: "planning",
@@ -163,8 +163,7 @@ NodeTest.test(
       FIXTURE_LONG_RUNNING: "1",
     });
     try {
-      const request =
-        "Planning only: prepare the Expo checkout implementation plan. Do not edit application files.";
+      const request = "Implement the Expo checkout and verify the payment flow.";
       const response = await c.call("session/prompt", {
         sessionId: c.sessionId,
         prompt: [{ type: "text", text: request }],
@@ -177,7 +176,8 @@ NodeTest.test(
       NodeAssert.match(args.task, /Work type: planning; platform: expo/);
       NodeAssert.match(args.task, /t3-builder:/);
       NodeAssert.ok(args.task.endsWith(request));
-      NodeAssert.equal(args.interactionMode, "plan");
+      NodeAssert.equal(args.interactionMode, undefined);
+      NodeAssert.doesNotMatch(args.task, /writing-plans:|Scope: planning\/inspection only/);
       const s = JSON.parse(NodeFS.readFileSync(NodePath.join(c.state, c.sessionId + ".json")));
       NodeAssert.equal(s.lastRoute.collaboration, "parallel_read");
       NodeAssert.ok(s.lastRoute.plannedSkills.includes("startup-workflow"));
@@ -554,7 +554,7 @@ NodeTest.test(
           sessionId: c.sessionId,
           prompt: [{ type: "text", text }],
         });
-      await send("/plan");
+      await send("/ plan");
       await send("Check the payment edge cases");
       await send("/build");
       await send("Implement the approved checkout");

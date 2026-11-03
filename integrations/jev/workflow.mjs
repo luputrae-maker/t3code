@@ -5,9 +5,9 @@ import * as NodeURL from "node:url";
 import { stripRolePrefix } from "./presentation.mjs";
 
 const byKind = {
-  planning: ["startup-workflow", "create-prd", "writing-plans"],
+  planning: ["startup-workflow", "create-prd"],
   design: ["evan-design", "anti-ai-slop", "accessibility-audit"],
-  coding: ["writing-plans", "verification-before-completion"],
+  coding: ["verification-before-completion"],
   debugging: ["systematic-debugging", "verification-before-completion"],
   review: ["requesting-code-review", "security-review", "verification-before-completion"],
   research: ["startup-workflow", "research-plan"],
@@ -24,6 +24,7 @@ export function installedSkills() {
   const names = new Set([
     "t3-builder",
     "impeccable",
+    "writing-plans",
     ...Object.values(byKind).flat(),
     ...Object.values(byStack).flat(),
   ]);
@@ -48,7 +49,14 @@ export function selectedSkills(target, catalog = installedSkills()) {
   const stack = ["design", "coding", "debugging", "review"].includes(target.taskKind)
     ? (byStack[target.stack] ?? [])
     : [];
-  return [...new Set(["t3-builder", ...(byKind[target.taskKind] ?? []), ...stack])]
+  return [
+    ...new Set([
+      "t3-builder",
+      ...(byKind[target.taskKind] ?? []),
+      ...(target.scope === "plan_only" ? ["writing-plans"] : []),
+      ...stack,
+    ]),
+  ]
     .map((name) =>
       name === "evan-design" && !catalog[name] && catalog.impeccable ? "impeccable" : name,
     )
@@ -76,7 +84,7 @@ export function workflowBrief(target, catalog = installedSkills()) {
     team,
     target.scope === "plan_only"
       ? "Scope: planning/inspection only. Do not edit project files, install packages or begin implementation. Return the requested plan or findings."
-      : "Scope: execute the user-authorized task, with inherited T3 permissions and project constraints.",
+      : "Scope: execute the user-authorized task, with inherited T3 permissions and project constraints. Plan mode is opt-in: do not add a separate planning approval stage. Answer advice or analysis requests as asked; they do not authorize implementation.",
     skills.length
       ? "Read t3-builder first, then load only the listed skills relevant to the current step. These are installed paths, not a claim that they have already been used."
       : "",

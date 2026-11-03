@@ -148,3 +148,33 @@ NodeTest.test(
     NodeAssert.ok(workMessage({ status: "running", link }).includes("\n\n"));
   },
 );
+
+NodeTest.test(
+  "only an explicit plan setting can restrict native execution to plan mode",
+  async () => {
+    for (const [interactionMode, scope, collaboration] of [
+      [undefined, "execute", "parallel_build"],
+      ["default", "execute", "parallel_build"],
+      ["plan", "plan_only", "parallel_read"],
+    ]) {
+      let n = 0;
+      const selected = await route(
+        pool,
+        { request: "Build checkout", interactionMode },
+        async () =>
+          ++n === 1
+            ? {
+                answers: {
+                  provider: { choice: "claudeAgent" },
+                  kind: { choice: "coding" },
+                  scope: { choice: "plan_only" },
+                  collaboration: { choice: "parallel_build" },
+                },
+              }
+            : { answers: { selection: { choice: "r0" } } },
+      );
+      NodeAssert.equal(selected.scope, scope);
+      NodeAssert.equal(selected.collaboration, collaboration);
+    }
+  },
+);

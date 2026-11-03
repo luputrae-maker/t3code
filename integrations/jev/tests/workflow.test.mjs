@@ -25,7 +25,13 @@ const catalog = Object.fromEntries(
 NodeTest.test(
   "planning and mobile design select useful installed skills while omitting unavailable skills",
   () => {
-    const plan = selectedSkills({ taskKind: "planning", stack: "general" }, catalog);
+    const plan = selectedSkills(
+      { taskKind: "planning", stack: "general", scope: "plan_only" },
+      catalog,
+    );
+    NodeAssert.ok(plan.some((s) => s.name === "writing-plans"));
+    const build = selectedSkills({ taskKind: "coding", scope: "execute" }, catalog);
+    NodeAssert.ok(!build.some((s) => s.name === "writing-plans"));
     NodeAssert.ok(plan.some((s) => s.name === "create-prd"));
     const mobile = selectedSkills({ taskKind: "design", stack: "expo" }, catalog);
     NodeAssert.ok(mobile.some((s) => s.name === "expo-native-ui"));
