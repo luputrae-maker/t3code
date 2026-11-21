@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import {applyEffort,workBrief} from './router.mjs';
+import {excludeQuotaBuckets} from './quota.mjs';
 
 const terminal=new Set(['idle','completed','interrupted','failed','cancelled','rolled_back']);
 const ensure=(condition,message)=>{if(!condition)throw Error(message);};
@@ -53,7 +54,8 @@ export async function drainWork(s,io){
  }
  const queued=s.pending[0],previous=s.route?.profile;
  const context=routingContext(s,queued.task);
- const {capabilities,candidates}=await io.pool();
+ const {capabilities,candidates:eligible}=await io.pool();
+ const candidates=excludeQuotaBuckets(eligible,queued.quotaSkippedBuckets??[]);
  ensure(capabilities.parentThreadId===io.threadId,'Native parent context mismatch');
  ensure(candidates.length,'No signed-in native subscription provider is available. Open Settings → Providers.');
  if(s.cancelled)return;
@@ -121,6 +123,7 @@ export async function drainWork(s,io){
  }
  s.routeHistory??=[];
  s.routeHistory.push({requestId:queued.id,task:queued.task,classifier:route.classifier,provider:profile.provider,model:profile.model,
+  quotaSkippedBuckets:queued.quotaSkippedBuckets??[],
   previousProvider:current?.modelSelection.instanceId??previous?.provider??null,changed,
   ...(appliedEffort?{effort:{requested:route.effort,...appliedEffort}}:{}),
   confidence:route.confidence,probabilities:route.probabilities,candidates:candidates.map(p=>p.id),

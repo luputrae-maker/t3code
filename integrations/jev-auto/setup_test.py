@@ -50,6 +50,26 @@ class SetupTests(unittest.TestCase):
                         True, "fixture-key")
             self.assertEqual(json.loads(settings.read_text())["defaultRuntimeMode"], "approval-required")
 
+    def test_update_installs_quota_module_and_preserves_credentials_and_settings(self):
+        with tempfile.TemporaryDirectory() as directory:
+            profile = Path(directory) / "existing-jev-profile"
+            args = (profile, Path("/example/T3"), Path("/example/entry.mjs"),
+                    Path("/example/node"), Path("/example/python"), 8475, True)
+            install(*args, "fixture-key")
+            module_path = profile / "adapter/quota.mjs"
+            module_path.unlink()
+            settings_path = profile / "userdata/settings.json"
+            settings = json.loads(settings_path.read_text())
+            settings["providerInstances"]["cursor"] = {"enabled": True}
+            settings_path.write_text(json.dumps(settings))
+
+            install(*args, None)
+
+            self.assertTrue(module_path.is_file())
+            self.assertEqual((profile / "adapter/typesafe.key").read_text(), "fixture-key\n")
+            self.assertEqual(json.loads(settings_path.read_text())["providerInstances"]["cursor"],
+                             {"enabled": True})
+
 
 if __name__ == "__main__":
     unittest.main()

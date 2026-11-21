@@ -1,3 +1,5 @@
+import {exhaustedWindow,modelQuotaAvailable} from './quota.mjs';
+
 const providerGuidance = {
  codex: 'Codex via ChatGPT subscription. Native repository implementation, debugging and verification.',
  claudeAgent: 'Claude Code via Claude subscription. Native repository implementation, design, reasoning and review.',
@@ -79,7 +81,7 @@ function eligibleProvider(id, status, config, now) {
  if (Date.parse(config.providerPauseUntil?.[id]) > now) return false;
  return !status.usageLimits?.windows?.some(window =>
   ['Overall','Session','Weekly'].includes(window.label) &&
-  window.usedPercent >= 100 && (!window.resetsAt || Date.parse(window.resetsAt) > now),
+  exhaustedWindow(window,now),
  );
 }
 
@@ -90,7 +92,7 @@ function eligibleModel(config, provider, model) {
   (provider !== 'cursor' || config.cursorAllowThirdParty === true || /^(grok|composer)-/.test(model));
 }
 
-export async function availablePool(config,statuses,call,{now=Date.now(),hiddenModels={}}={}){
+export async function availablePool(config,statuses,call,{now=Date.now(),hiddenModels={},quotaHolds={}}={}){
  const capabilities=await call('orchestrator_capabilities',{});
  for(const p of config.profiles){
   const provider=capabilities.providers.find(x=>x.providerInstanceId===p.provider);
@@ -102,9 +104,9 @@ export async function availablePool(config,statuses,call,{now=Date.now(),hiddenM
   const matching=extra.providers.find(x=>x.providerInstanceId===p.provider&&x.canRunChildTask)?.models.find(m=>m.id===p.model);
   if(matching)provider.models.push(matching);
  }
- return {capabilities,candidates:candidateTargets(config,capabilities,statuses,{now,hiddenModels})};
+ return {capabilities,candidates:candidateTargets(config,capabilities,statuses,{now,hiddenModels,quotaHolds})};
 }
-export function candidateTargets(config,capabilities,statuses,{now=Date.now(),hiddenModels={}}={}){
+export function candidateTargets(config,capabilities,statuses,{now=Date.now(),hiddenModels={},quotaHolds={}}={}){
  const profiles = [];
  for (const {providerInstanceId:provider,canRunChildTask,models} of capabilities.providers) {
   const status = statuses[provider];
@@ -119,7 +121,8 @@ export function candidateTargets(config,capabilities,statuses,{now=Date.now(),hi
   const seen = new Set(hiddenModels[provider]);
   for (const model of catalog) {
    const slug = model.slug;
-   if (model.isCustom || !eligibleModel(config,provider,slug) || seen.has(slug)) continue;
+   if (model.isCustom || !eligibleModel(config,provider,slug) || seen.has(slug) ||
+       !modelQuotaAvailable(provider,slug,status.usageLimits?.windows??[],quotaHolds,now)) continue;
    seen.add(slug);
    const profile = curated.find(profile => profile.model === slug) ?? {
     id: `${provider}:${slug}`,

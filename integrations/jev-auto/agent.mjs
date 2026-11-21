@@ -7,11 +7,13 @@ import {fileURLToPath} from 'node:url';
 import {availablePool,isNotice,nativeProviders,settled} from './router.mjs';
 import {submitWork,drainWork} from './dispatch.mjs';
 import {incomingTask} from './prompt.mjs';
+import {nativeQuotaHold,queueQuotaRetry,readQuotaHolds,saveQuotaHold} from './quota.mjs';
 
 const assert=(ok,message)=>{if(!ok)throw Error(message);};
 const here=path.dirname(fileURLToPath(import.meta.url));
-const version='1.3.0';
+const version='1.4.0';
 const config=JSON.parse(fs.readFileSync(process.env.JEV_T3_CONFIG,'utf8'));
+const quotaDirectory=path.join(config.stateDir,'quota');
 const sessions=new Map(),bridges=new Map();
 const emit=value=>process.stdout.write(JSON.stringify(value)+'\n');
 const say=(id,text)=>emit({jsonrpc:'2.0',method:'session/update',params:{sessionId:id,update:{sessionUpdate:'agent_message_chunk',content:{type:'text',text}}}});
@@ -64,10 +66,23 @@ function classify(task,candidates){
   child.stdin.end(JSON.stringify({task,candidates}));
  });
 }
-async function report(s,b){
+async function report(s,b,{retryQuota=false}={}){
  const result=await b.call('task_status',{taskId:s.task.taskId});s.task={...s.task,...result};checkpoint(s);
  if(settled(result)){
   s.lastResult={taskId:s.task.taskId,summary:result.summary??'Native task '+result.status+'.'};
+  const last=s.routeHistory?.at(-1);
+  const hold=last?.runId && last.runId===result.childRunId
+   ? nativeQuotaHold(result,Date.parse(last.dispatchedAt)) : undefined;
+  if(hold)saveQuotaHold(quotaDirectory,last.runId,hold);
+  if(hold && retryQuota && hold.until>Date.now()){
+   let queued=false;
+   try{queued=await queueQuotaRetry(s,result,execution(s,b));}catch{}
+   if(queued){
+    s.lastReportedTaskId=s.task.taskId;checkpoint(s);
+    say(s.id,`${result.providerInstanceId} reached a usage limit. Jev is choosing another eligible route.\n`);
+    return result;
+   }
+  }
   if(s.lastReportedTaskId!==s.task.taskId){say(s.id,`${s.lastResult.summary}\n\n${result.link??s.task.link??''}`);s.lastReportedTaskId=s.task.taskId;checkpoint(s);}
  }
  else if(result.hasPendingQuestion||result.pendingApproval)say(s.id,`The ${s.route.profile.provider} task needs your answer in its native T3 thread. ${result.link??s.task.link??''}`);
@@ -86,7 +101,9 @@ function execution(s,b){
    const settings=JSON.parse(fs.readFileSync(path.join(config.home,'userdata','settings.json'),'utf8'));
    const hiddenModels=Object.fromEntries(Object.entries(settings.providerModelPreferences??{})
     .map(([provider,preferences])=>[provider,preferences.hiddenModels]));
-   return availablePool(config,statuses,(name,args)=>b.call(name,args),{hiddenModels});
+   return availablePool(config,statuses,(name,args)=>b.call(name,args),{
+    hiddenModels,quotaHolds:readQuotaHolds(quotaDirectory),
+   });
   },
  };
 }
@@ -119,7 +136,7 @@ async function handle(method,p={}){
   return {stopReason:'end_turn'};
  }
  if(notice){
-  if(s.task?.taskId){const result=await report(s,b);if(settled(result))await drainWork(s,execution(s,b));}
+  if(s.task?.taskId){const result=await report(s,b,{retryQuota:true});if(settled(result))await drainWork(s,execution(s,b));}
   return {stopReason:'end_turn'};
  }
  await submitWork(s,task,execution(s,b));

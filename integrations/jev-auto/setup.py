@@ -16,7 +16,7 @@ import tempfile
 
 
 SOURCE = Path(__file__).resolve().parent
-FILES = ("agent.mjs", "dispatch.mjs", "router.mjs", "prompt.mjs",
+FILES = ("agent.mjs", "dispatch.mjs", "router.mjs", "prompt.mjs", "quota.mjs",
          "classify.py", "jev_client.py", "profiles.json")
 APP_REQUIREMENT = ('=anchor apple generic and identifier "com.t3tools.t3code"'
                    ' and certificate leaf[subject.OU] = "ARK85ZXQ4Z"')

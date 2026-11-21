@@ -3,6 +3,8 @@
 Jev Auto chooses a signed-in coding provider, model, and reasoning effort for
 each request. T3 runs the work in a native child chat and can keep that chat
 across follow-ups. This macOS installer uses the signed upstream T3 desktop app.
+Jev skips model groups with exhausted quotas. If T3 confirms a quota rejection
+before any work starts, Jev tries another eligible route automatically.
 
 ## Install on macOS
 
@@ -31,6 +33,10 @@ open "$HOME/.jev-t3-share/Jev T3.command"
 The launcher opens an isolated T3 profile and sets the local bridge port.
 Use the launcher each time. If your upstream app has a different name or
 location, pass its path to setup with `--app`.
+
+To update an existing installation, quit T3, unzip the newer release and rerun
+setup with the same options you originally used. It reuses your TypeSafe key
+and provider settings. Reopen the launcher and start a Jev Auto chat.
 
 ## Permissions and billing
 
